@@ -33,7 +33,8 @@ public final class AdaptiveVerificationSession {
   private long startedAt;
   private boolean started;
   private boolean teleportConfirmed;
-  private boolean initialPositionEchoAllowed;
+  private boolean awaitingInitialMotion;
+  private int initialPositionEchoes;
   private MotionSample previous;
   private VerificationResult result = VerificationResult.PENDING;
 
@@ -86,7 +87,8 @@ public final class AdaptiveVerificationSession {
     }
 
     this.teleportConfirmed = true;
-    this.initialPositionEchoAllowed = true;
+    this.awaitingInitialMotion = true;
+    this.initialPositionEchoes = 0;
     this.previous = new MotionSample(0, instruction.start(), instruction.initialVelocity(), false);
     this.result = VerificationResult.PENDING;
     return this.result;
@@ -107,12 +109,15 @@ public final class AdaptiveVerificationSession {
     }
 
     ChallengeInstruction instruction = this.currentInstruction();
-    if (this.initialPositionEchoAllowed) {
-      this.initialPositionEchoAllowed = false;
+    if (this.awaitingInitialMotion) {
       if (!onGround && within(position, instruction.start(), this.profile.positionTolerance())) {
+        if (++this.initialPositionEchoes > this.profile.maxPacketGapTicks()) {
+          return this.fail(VerificationResult.FAIL_TRAJECTORY);
+        }
         this.result = VerificationResult.PENDING;
         return this.result;
       }
+      this.awaitingInitialMotion = false;
     }
     TrajectoryMatch match = TrajectoryEnvelope.match(
         this.previous, position, onGround, this.profile, instruction.platformTopY());

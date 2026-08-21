@@ -43,7 +43,7 @@ class AdaptiveVerificationSessionTest {
   }
 
   @Test
-  void acceptsOneInitialPositionEchoAfterTeleport() {
+  void acceptsBoundedInitialPositionEchoesWhileClientPhysicsStarts() {
     ChallengeInstruction instruction = new ChallengeInstruction(
         ChallengePhase.FALL_COLLISION, 124, new MotionVector(0.0, 1.0, 0.0), MotionVector.ZERO, 0.0, 2.0);
     AdaptiveVerificationSession session = session(instruction);
@@ -51,7 +51,22 @@ class AdaptiveVerificationSessionTest {
     session.start();
     session.confirmTeleport(124);
     assertEquals(VerificationResult.PENDING, session.move(instruction.start(), false));
+    assertEquals(VerificationResult.PENDING, session.move(instruction.start(), false));
     assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.0, 0.9216, 0.0), false));
+  }
+
+  @Test
+  void rejectsAnInitialPositionThatRemainsFrozenPastThePacketGapBound() {
+    ChallengeInstruction instruction = new ChallengeInstruction(
+        ChallengePhase.FALL_COLLISION, 125, new MotionVector(0.0, 1.0, 0.0), MotionVector.ZERO, 0.0, 2.0);
+    AdaptiveVerificationSession session = session(instruction);
+
+    session.start();
+    session.confirmTeleport(125);
+    for (int i = 0; i < PROFILE.maxPacketGapTicks(); ++i) {
+      assertEquals(VerificationResult.PENDING, session.move(instruction.start(), false));
+    }
+    assertEquals(VerificationResult.FAIL_TRAJECTORY, session.move(instruction.start(), false));
   }
 
   @Test
