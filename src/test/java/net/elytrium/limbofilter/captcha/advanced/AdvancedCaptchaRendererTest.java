@@ -110,13 +110,16 @@ class AdvancedCaptchaRendererTest {
   }
 
   @Test
-  void memoryGridRotatesTheGuideForThePlayersView() {
+  void memoryGridMatchesTheFloorFromThePlayersView() {
     RenderedCaptcha captcha = this.renderer.render(CaptchaFamily.MEMORY_GRID, new Random(42L));
 
+    assertEquals(new java.awt.Color(113, 70, 162).getRGB(), captcha.image().getRGB(24, 24));
+    assertEquals(new java.awt.Color(218, 221, 224).getRGB(),
+        captcha.image().getRGB(2 * 128 + 24, 24));
     assertEquals(new java.awt.Color(181, 58, 52).getRGB(),
-        captcha.image().getRGB(2 * 128 + 24, 2 * 128 + 24));
-    assertEquals(new java.awt.Color(226, 190, 49).getRGB(),
         captcha.image().getRGB(24, 2 * 128 + 24));
+    assertEquals(new java.awt.Color(226, 190, 49).getRGB(),
+        captcha.image().getRGB(2 * 128 + 24, 2 * 128 + 24));
   }
 
   @Test

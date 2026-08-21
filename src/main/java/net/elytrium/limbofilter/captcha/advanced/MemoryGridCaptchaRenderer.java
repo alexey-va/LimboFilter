@@ -150,7 +150,7 @@ final class MemoryGridCaptchaRenderer {
   }
 
   private static int displayColumn(int tile) {
-    return GRID_SIZE - 1 - tile % GRID_SIZE;
+    return tile % GRID_SIZE;
   }
 
   private static int centerY(int tile) {
