@@ -21,11 +21,43 @@ import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import net.elytrium.limbofilter.captcha.advanced.CaptchaFamily;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 class AdaptiveSettingsTest {
+
+  @Test
+  void normalizesCaptchaFamiliesLoadedFromYaml(@TempDir Path tempDir) throws Exception {
+    Path config = tempDir.resolve("config.yml");
+    Files.writeString(config, """
+        main:
+          one-time-captcha:
+            enabled: true
+            pool-size: 128
+            refill-low-water-mark: 32
+            generator-threads: 1
+            families:
+              - TEXT
+              - ARITHMETIC
+              - MARKED_GLYPHS
+          captcha-generator:
+            prepare-captcha-packets: false
+        """);
+
+    Settings settings = new Settings();
+    settings.reload(config.toFile(), settings.PREFIX);
+
+    assertDoesNotThrow(() -> Settings.validateAdvancedSettings(
+        settings.MAIN.ADAPTIVE_VERIFICATION,
+        settings.MAIN.ONE_TIME_CAPTCHA,
+        settings.MAIN.CAPTCHA_GENERATOR.PREPARE_CAPTCHA_PACKETS));
+    assertEquals(List.of(CaptchaFamily.TEXT, CaptchaFamily.ARITHMETIC, CaptchaFamily.MARKED_GLYPHS),
+        settings.MAIN.ONE_TIME_CAPTCHA.FAMILIES);
+  }
 
   @Test
   void acceptsDocumentedDefaults() {

@@ -17,7 +17,9 @@
 
 package net.elytrium.limbofilter;
 
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import net.elytrium.commons.config.YamlConfig;
@@ -530,12 +532,32 @@ public class Settings extends YamlConfig {
     if (captcha.GENERATOR_THREADS < 1 || captcha.GENERATOR_THREADS > 2) {
       throw new IllegalArgumentException("captcha generator-threads must be in range 1..2");
     }
-    if (captcha.FAMILIES == null || captcha.FAMILIES.isEmpty() || captcha.FAMILIES.stream().anyMatch(Objects::isNull)) {
-      throw new IllegalArgumentException("at least one captcha family is required");
-    }
+    captcha.FAMILIES = normalizeCaptchaFamilies(captcha.FAMILIES);
     if (prepareCaptchaPackets) {
       throw new IllegalArgumentException("one-time captcha requires prepare-captcha-packets: false");
     }
+  }
+
+  private static List<CaptchaFamily> normalizeCaptchaFamilies(List<?> configuredFamilies) {
+    if (configuredFamilies == null || configuredFamilies.isEmpty()) {
+      throw new IllegalArgumentException("at least one captcha family is required");
+    }
+
+    List<CaptchaFamily> normalized = new ArrayList<>(configuredFamilies.size());
+    for (Object configuredFamily : configuredFamilies) {
+      if (configuredFamily instanceof CaptchaFamily family) {
+        normalized.add(family);
+      } else if (configuredFamily instanceof String familyName) {
+        try {
+          normalized.add(CaptchaFamily.valueOf(familyName.trim().toUpperCase(Locale.ROOT)));
+        } catch (IllegalArgumentException exception) {
+          throw new IllegalArgumentException("unknown captcha family: " + familyName, exception);
+        }
+      } else {
+        throw new IllegalArgumentException("captcha family must be a string");
+      }
+    }
+    return List.copyOf(normalized);
   }
 
   private static void requireFinitePositive(double value, String name) {
