@@ -88,6 +88,11 @@ public class Settings extends YamlConfig {
     public static class ADAPTIVE_VERIFICATION {
 
       public AdaptiveMode MODE = AdaptiveMode.SHADOW;
+      @Comment({
+          "Usernames listed here always use ENFORCE, even when mode is OFF or SHADOW.",
+          "Matching is case-insensitive. Leave empty to disable per-user testing."
+      })
+      public List<String> TEST_USERNAMES = List.of();
       public int MAX_PACKET_GAP_TICKS = 4;
       public int MAX_SAMPLES_PER_PHASE = 160;
       public long MAX_SESSION_MILLIS = 12000;
@@ -496,6 +501,7 @@ public class Settings extends YamlConfig {
     Objects.requireNonNull(adaptive, "adaptive");
     Objects.requireNonNull(captcha, "captcha");
     Objects.requireNonNull(adaptive.MODE, "adaptive.mode");
+    Objects.requireNonNull(adaptive.TEST_USERNAMES, "adaptive.test-usernames");
 
     if (adaptive.MAX_PACKET_GAP_TICKS < 1 || adaptive.MAX_PACKET_GAP_TICKS > 20) {
       throw new IllegalArgumentException("adaptive max-packet-gap-ticks must be in range 1..20");

@@ -101,6 +101,10 @@ logic to `AdaptiveVerificationSession`. The handler is responsible only for:
 state. The default is `SHADOW` until a real-client compatibility pass has been
 performed outside this coding task.
 
+`test-usernames` is a case-insensitive pilot allowlist. Listed Java usernames
+use `ENFORCE` regardless of the global mode, while every other connection keeps
+the configured mode. Geyser and `ONLY_CAPTCHA` paths ignore this override.
+
 The fork adds its own clientbound adaptive position packet because LimboAPI's
 1.21.2+ position packet currently hardcodes the velocity fields to zero. The
 packet uses LimboAPI's existing registration boundary and is prepared only for
@@ -146,6 +150,7 @@ New settings live under two top-level sections in LimboFilter's generated YAML:
 ```yaml
 adaptive-verification:
   mode: SHADOW
+  test-usernames: []
   max-packet-gap-ticks: 4
   max-samples-per-phase: 160
   max-session-millis: 12000

@@ -42,6 +42,7 @@ import net.elytrium.limbofilter.protocol.packets.Interact;
 import net.elytrium.limbofilter.protocol.packets.SetEntityMetadata;
 import net.elytrium.limbofilter.stats.Statistics;
 import net.elytrium.limbofilter.verification.AdaptiveMode;
+import net.elytrium.limbofilter.verification.AdaptiveModeSelector;
 import net.elytrium.limbofilter.verification.AdaptiveVerificationSession;
 import net.elytrium.limbofilter.verification.ChallengeInstruction;
 import net.elytrium.limbofilter.verification.ChallengeProgram;
@@ -121,7 +122,8 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
       this.adaptiveSession = null;
     } else {
       Settings.MAIN.ADAPTIVE_VERIFICATION adaptive = Settings.IMP.MAIN.ADAPTIVE_VERIFICATION;
-      this.adaptiveMode = adaptive.MODE;
+      this.adaptiveMode = AdaptiveModeSelector.resolve(
+          adaptive.MODE, adaptive.TEST_USERNAMES, this.proxyPlayer.getUsername());
       this.adaptiveSession = this.createAdaptiveSession(adaptive);
     }
   }

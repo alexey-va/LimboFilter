@@ -18,6 +18,7 @@
 package net.elytrium.limbofilter;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import java.util.List;
@@ -28,8 +29,10 @@ class AdaptiveSettingsTest {
 
   @Test
   void acceptsDocumentedDefaults() {
+    Settings.MAIN.ADAPTIVE_VERIFICATION adaptive = new Settings.MAIN.ADAPTIVE_VERIFICATION();
     assertDoesNotThrow(() -> Settings.validateAdvancedSettings(
-        new Settings.MAIN.ADAPTIVE_VERIFICATION(), new Settings.MAIN.ONE_TIME_CAPTCHA(), false));
+        adaptive, new Settings.MAIN.ONE_TIME_CAPTCHA(), false));
+    assertEquals(List.of(), adaptive.TEST_USERNAMES);
   }
 
   @Test

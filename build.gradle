@@ -9,7 +9,7 @@ plugins {
 }
 
 setGroup("net.elytrium")
-setVersion("1.2.0-ruscrafting.1")
+setVersion("1.2.0-ruscrafting.2")
 
 compileJava {
     getOptions().setEncoding("UTF-8")

@@ -17,7 +17,7 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.1` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.2` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
@@ -42,6 +42,8 @@ The generated configuration contains:
 ```yaml
 adaptive-verification:
   mode: SHADOW
+  # These Java usernames use ENFORCE while everyone else keeps mode above.
+  test-usernames: [YourTestPlayer]
   max-packet-gap-ticks: 4
   max-samples-per-phase: 160
   max-session-millis: 12000
@@ -57,6 +59,11 @@ one-time-captcha:
   generator-threads: 1
   families: [TEXT, ARITHMETIC, MARKED_GLYPHS]
 ```
+
+`test-usernames` is case-insensitive. It is intended for a real-client pilot:
+with global `mode: OFF` or `mode: SHADOW`, only the listed Java usernames are
+forced through `ENFORCE`. An empty list disables the override. Geyser and
+`ONLY_CAPTCHA` connections still stay on their compatibility paths.
 
 Keep `captcha-generator.prepare-captcha-packets: false` while the one-time pool
 is enabled. Reload fails fast if this invariant or any resource bound is
