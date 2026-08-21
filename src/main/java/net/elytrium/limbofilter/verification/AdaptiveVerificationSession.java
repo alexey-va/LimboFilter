@@ -32,6 +32,7 @@ public final class AdaptiveVerificationSession {
   private int samples;
   private long startedAt;
   private boolean started;
+  private boolean motionStarted;
   private boolean teleportConfirmed;
   private boolean awaitingInitialMotion;
   private int initialPositionEchoes;
@@ -59,7 +60,6 @@ public final class AdaptiveVerificationSession {
       throw new IllegalStateException("verification session was already started");
     }
     this.started = true;
-    this.startedAt = this.clock.getAsLong();
     return this.currentInstruction();
   }
 
@@ -74,7 +74,7 @@ public final class AdaptiveVerificationSession {
     if (!this.started) {
       return this.fail(VerificationResult.FAIL_PROTOCOL);
     }
-    if (this.expired()) {
+    if (this.motionStarted && this.expired()) {
       return this.fail(VerificationResult.TIMEOUT);
     }
     if (this.teleportConfirmed) {
@@ -101,7 +101,7 @@ public final class AdaptiveVerificationSession {
     if (!this.started || !this.teleportConfirmed) {
       return this.fail(VerificationResult.FAIL_PROTOCOL);
     }
-    if (this.expired() || ++this.samples > this.maxSamplesPerPhase) {
+    if (++this.samples > this.maxSamplesPerPhase) {
       return this.fail(VerificationResult.TIMEOUT);
     }
     if (!position.isFinite()) {
@@ -118,6 +118,12 @@ public final class AdaptiveVerificationSession {
         return this.result;
       }
       this.awaitingInitialMotion = false;
+    }
+    if (!this.motionStarted) {
+      this.motionStarted = true;
+      this.startedAt = this.clock.getAsLong();
+    } else if (this.expired()) {
+      return this.fail(VerificationResult.TIMEOUT);
     }
     TrajectoryMatch match = TrajectoryEnvelope.match(
         this.previous, position, onGround, this.profile, instruction.platformTopY());

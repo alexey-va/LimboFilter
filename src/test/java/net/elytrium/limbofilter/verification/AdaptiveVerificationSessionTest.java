@@ -131,7 +131,7 @@ class AdaptiveVerificationSessionTest {
   @Test
   void distinguishesCollisionFailureAndTimeout() {
     ChallengeInstruction instruction = new ChallengeInstruction(
-        ChallengePhase.FALL_COLLISION, 88, new MotionVector(0.0, 0.05, 0.0), MotionVector.ZERO, 0.0, 1.0);
+        ChallengePhase.FALL_COLLISION, 88, new MotionVector(0.0, 1.0, 0.0), MotionVector.ZERO, 0.0, 1.0);
 
     AdaptiveVerificationSession collision = session(instruction);
     collision.start();
@@ -144,9 +144,32 @@ class AdaptiveVerificationSessionTest {
         new ChallengeProgram(List.of(instruction)), PROFILE, 160, 12_000L, clock::get);
     timeout.start();
     timeout.confirmTeleport(88);
+    assertEquals(VerificationResult.PENDING,
+        timeout.move(new MotionVector(0.0, 0.9216, 0.0), false));
     clock.set(12_101L);
     assertEquals(VerificationResult.TIMEOUT,
-        timeout.move(new MotionVector(0.0, 0.0, 0.0), true));
+        timeout.move(new MotionVector(0.0, 0.766368, 0.0), false));
+  }
+
+  @Test
+  void startsTheSessionTimeoutWhenClientPhysicsActuallyBegins() {
+    ChallengeInstruction instruction = new ChallengeInstruction(
+        ChallengePhase.FALL_COLLISION, 89, new MotionVector(0.0, 1.0, 0.0), MotionVector.ZERO, 0.0, 1.0);
+    AtomicLong clock = new AtomicLong(100L);
+    AdaptiveVerificationSession session = new AdaptiveVerificationSession(
+        new ChallengeProgram(List.of(instruction)), PROFILE, 160, 12_000L, clock::get);
+
+    session.start();
+    session.confirmTeleport(89);
+    assertEquals(VerificationResult.PENDING, session.move(instruction.start(), false));
+
+    clock.set(30_000L);
+    assertEquals(VerificationResult.PENDING,
+        session.move(new MotionVector(0.0, 0.9216, 0.0), false));
+
+    clock.set(42_001L);
+    assertEquals(VerificationResult.TIMEOUT,
+        session.move(new MotionVector(0.0, 0.766368, 0.0), false));
   }
 
   @Test
