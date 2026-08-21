@@ -24,16 +24,23 @@ import org.junit.jupiter.api.Test;
 class MemoryGridChallengeTest {
 
   @Test
-  void acceptsOnlyGroundedTilesAfterTheTeleportNonceIsConfirmed() {
-    MemoryGridChallenge challenge = MemoryGridChallenge.fromAnswer("WALK:1,4,7", 91);
+  void ignoresMovementWhileReadingThenAcceptsGroundedTilesAfterTheSecondTeleport() {
+    MemoryGridChallenge challenge = MemoryGridChallenge.fromAnswer("WALK:1,4,7", 90, 91);
 
     assertEquals(MemoryGridChallenge.Result.IGNORED,
         challenge.move(0.5, 80.0, -2.5, true));
-    MemoryGridChallenge.Traversal traversal = challenge.beginTraversal();
+    MemoryGridChallenge.Traversal preview = challenge.beginPreview();
+    assertEquals(90, preview.teleportId());
+    assertEquals(MemoryGridChallenge.Result.IGNORED, challenge.confirmTeleport(90));
+    assertEquals(MemoryGridChallenge.Result.IGNORED,
+        challenge.move(0.5, 80.0, -2.5, true));
+
+    MemoryGridChallenge.Traversal traversal = challenge.activateTraversal();
     assertEquals(91, traversal.teleportId());
     assertEquals(0.5, traversal.x());
     assertEquals(80.0, traversal.y());
     assertEquals(-6.5, traversal.z());
+    assertEquals(MemoryGridChallenge.Result.IGNORED, challenge.confirmTeleport(90));
     assertEquals(MemoryGridChallenge.Result.PENDING, challenge.confirmTeleport(91));
 
     assertEquals(MemoryGridChallenge.Result.IGNORED,
@@ -52,8 +59,9 @@ class MemoryGridChallengeTest {
 
   @Test
   void rejectsAReplayedOrWrongTeleportNonce() {
-    MemoryGridChallenge challenge = MemoryGridChallenge.fromAnswer("WALK:1,4,7", 91);
-    challenge.beginTraversal();
+    MemoryGridChallenge challenge = MemoryGridChallenge.fromAnswer("WALK:1,4,7", 90, 91);
+    challenge.beginPreview();
+    challenge.activateTraversal();
 
     assertEquals(MemoryGridChallenge.Result.FAILED_PROTOCOL, challenge.confirmTeleport(92));
     assertEquals(MemoryGridChallenge.Result.IGNORED, challenge.confirmTeleport(91));
@@ -61,13 +69,20 @@ class MemoryGridChallengeTest {
 
   @Test
   void failsWhenThePlayerStepsOnAnotherGridTile() {
-    MemoryGridChallenge challenge = MemoryGridChallenge.fromAnswer("WALK:1,4,7", 91);
-    challenge.beginTraversal();
+    MemoryGridChallenge challenge = MemoryGridChallenge.fromAnswer("WALK:1,4,7", 90, 91);
+    challenge.beginPreview();
+    challenge.activateTraversal();
     challenge.confirmTeleport(91);
 
     assertEquals(MemoryGridChallenge.Result.FAILED,
         challenge.move(3.5, 80.0, -2.5, true));
     assertEquals(MemoryGridChallenge.Result.IGNORED,
         challenge.move(0.5, 80.0, -2.5, true));
+  }
+
+  @Test
+  void requiresDifferentPreviewAndTraversalTeleportNonces() {
+    org.junit.jupiter.api.Assertions.assertThrows(IllegalArgumentException.class,
+        () -> MemoryGridChallenge.fromAnswer("WALK:1,4,7", 91, 91));
   }
 }

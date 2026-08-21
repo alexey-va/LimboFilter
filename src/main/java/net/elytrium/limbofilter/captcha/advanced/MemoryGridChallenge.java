@@ -20,34 +20,49 @@ package net.elytrium.limbofilter.captcha.advanced;
 public final class MemoryGridChallenge {
 
   private final InteractiveCaptchaSession sequence;
-  private final int teleportId;
+  private final int previewTeleportId;
+  private final int traversalTeleportId;
 
-  private boolean traversalStarted;
+  private Phase phase = Phase.CREATED;
   private boolean teleportConfirmed;
-  private boolean terminal;
 
-  private MemoryGridChallenge(InteractiveCaptchaSession sequence, int teleportId) {
+  private MemoryGridChallenge(InteractiveCaptchaSession sequence, int previewTeleportId, int traversalTeleportId) {
     this.sequence = sequence;
-    this.teleportId = teleportId;
+    this.previewTeleportId = previewTeleportId;
+    this.traversalTeleportId = traversalTeleportId;
   }
 
-  public static MemoryGridChallenge fromAnswer(String answer, int teleportId) {
+  public static MemoryGridChallenge fromAnswer(String answer, int previewTeleportId, int traversalTeleportId) {
     if (!InteractiveCaptchaSession.isMemoryGridAnswer(answer)) {
       throw new IllegalArgumentException("memory grid answer must contain a strict walking sequence");
     }
-    if (teleportId < 1) {
-      throw new IllegalArgumentException("memory grid teleport id must be positive");
+    if (previewTeleportId < 1 || traversalTeleportId < 1 || previewTeleportId == traversalTeleportId) {
+      throw new IllegalArgumentException("memory grid teleport ids must be positive and different");
     }
-    return new MemoryGridChallenge(InteractiveCaptchaSession.fromAnswer(answer), teleportId);
+    return new MemoryGridChallenge(
+        InteractiveCaptchaSession.fromAnswer(answer), previewTeleportId, traversalTeleportId);
   }
 
-  public Traversal beginTraversal() {
-    if (this.traversalStarted || this.terminal) {
-      throw new IllegalStateException("memory grid traversal was already started");
+  public Traversal beginPreview() {
+    if (this.phase != Phase.CREATED) {
+      throw new IllegalStateException("memory grid preview was already started");
     }
-    this.traversalStarted = true;
+    this.phase = Phase.PREVIEW;
+    return this.traversal(this.previewTeleportId);
+  }
+
+  public Traversal activateTraversal() {
+    if (this.phase != Phase.PREVIEW) {
+      throw new IllegalStateException("memory grid traversal requires an active preview");
+    }
+    this.phase = Phase.ACTIVE;
+    this.teleportConfirmed = false;
+    return this.traversal(this.traversalTeleportId);
+  }
+
+  private Traversal traversal(int teleportId) {
     return new Traversal(
-        this.teleportId,
+        teleportId,
         MemoryGridLayout.startX(),
         MemoryGridLayout.startY(),
         MemoryGridLayout.startZ()
@@ -55,11 +70,17 @@ public final class MemoryGridChallenge {
   }
 
   public Result confirmTeleport(int confirmedTeleportId) {
-    if (this.terminal) {
+    if (this.phase == Phase.PREVIEW || this.phase == Phase.TERMINAL) {
       return Result.IGNORED;
     }
-    if (!this.traversalStarted || this.teleportConfirmed || confirmedTeleportId != this.teleportId) {
-      this.terminal = true;
+    if (this.phase != Phase.ACTIVE) {
+      return Result.IGNORED;
+    }
+    if (confirmedTeleportId == this.previewTeleportId) {
+      return Result.IGNORED;
+    }
+    if (this.teleportConfirmed || confirmedTeleportId != this.traversalTeleportId) {
+      this.phase = Phase.TERMINAL;
       return Result.FAILED_PROTOCOL;
     }
     this.teleportConfirmed = true;
@@ -67,7 +88,7 @@ public final class MemoryGridChallenge {
   }
 
   public Result move(double x, double y, double z, boolean onGround) {
-    if (this.terminal || !this.teleportConfirmed) {
+    if (this.phase != Phase.ACTIVE || !this.teleportConfirmed) {
       return Result.IGNORED;
     }
 
@@ -81,17 +102,24 @@ public final class MemoryGridChallenge {
       case IGNORED -> Result.IGNORED;
       case PENDING -> Result.PENDING;
       case PASSED -> {
-        this.terminal = true;
+        this.phase = Phase.TERMINAL;
         yield Result.PASSED;
       }
       case FAILED -> {
-        this.terminal = true;
+        this.phase = Phase.TERMINAL;
         yield Result.FAILED;
       }
     };
   }
 
   public record Traversal(int teleportId, double x, double y, double z) {
+  }
+
+  private enum Phase {
+    CREATED,
+    PREVIEW,
+    ACTIVE,
+    TERMINAL
   }
 
   public enum Result {

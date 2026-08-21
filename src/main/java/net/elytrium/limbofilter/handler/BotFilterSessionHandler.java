@@ -106,6 +106,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   private boolean adaptiveChallengeStarted;
   private ScheduledFuture<?> adaptiveLoadingTask;
   private ScheduledFuture<?> memoryGridPreviewTask;
+  private boolean memoryGridPreviewActive;
   private boolean memoryGridTraversalActive;
   private boolean memoryGridGuideSpawned;
 
@@ -590,8 +591,17 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     boolean memoryGrid = InteractiveCaptchaSession.isMemoryGridAnswer(this.captchaAnswer);
     this.interactiveCaptchaSession = InteractiveCaptchaSession.isInteractiveAnswer(this.captchaAnswer) && !memoryGrid
         ? InteractiveCaptchaSession.fromAnswer(this.captchaAnswer) : null;
-    this.memoryGridChallenge = memoryGrid
-        ? MemoryGridChallenge.fromAnswer(this.captchaAnswer, CAPTCHA_RANDOM.nextInt(1, Integer.MAX_VALUE)) : null;
+    if (memoryGrid) {
+      int previewTeleportId = CAPTCHA_RANDOM.nextInt(1, Integer.MAX_VALUE);
+      int traversalTeleportId;
+      do {
+        traversalTeleportId = CAPTCHA_RANDOM.nextInt(1, Integer.MAX_VALUE);
+      } while (traversalTeleportId == previewTeleportId);
+      this.memoryGridChallenge = MemoryGridChallenge.fromAnswer(
+          this.captchaAnswer, previewTeleportId, traversalTeleportId);
+    } else {
+      this.memoryGridChallenge = null;
+    }
     if (memoryGrid && this.state != CheckState.ONLY_CAPTCHA) {
       this.pendingMemoryGridCaptcha = captchaHolder;
       this.traceAdaptivePacket("state", "memory-grid-preview", "deferredUntilCaptchaState=true");
@@ -606,9 +616,10 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
         "attempts=" + this.attempts + ", answerLength=" + this.captchaAnswer.length()
             + ", interactive=" + (this.interactiveCaptchaSession != null) + ", memoryGrid=" + memoryGrid);
 
-    PreparedPacket framedCaptchaPacket = this.interactiveCaptchaSession == null && !memoryGrid
-        ? this.plugin.getPackets().getFramedCaptchaPackets()
-        : this.plugin.getPackets().getInteractiveCaptchaPackets();
+    PreparedPacket framedCaptchaPacket = memoryGrid ? null
+        : (this.interactiveCaptchaSession == null
+            ? this.plugin.getPackets().getFramedCaptchaPackets()
+            : this.plugin.getPackets().getInteractiveCaptchaPackets());
     if (framedCaptchaPacket != null) {
       this.player.writePacket(framedCaptchaPacket);
     }
@@ -616,23 +627,14 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.player.writePacket(this.interactiveCaptchaSession == null && !memoryGrid
         ? this.plugin.getPackets().getCaptchaAttemptsPacket(this.attempts)
         : this.plugin.getPackets().getInteractiveCaptchaAttemptsPacket(this.attempts));
-    if (memoryGrid) {
-      PreparedPacket previewInstruction = this.plugin.getPackets().getMemoryGridPreviewInstruction();
-      if (previewInstruction != null) {
-        this.player.writePacket(previewInstruction);
-      }
-    }
     for (Object packet : captchaHolder.getMapPacket(this.version)) {
       this.player.writePacket(packet);
     }
 
-    this.player.flushPackets();
     if (memoryGrid) {
-      MemoryGridChallenge challenge = this.memoryGridChallenge;
-      this.memoryGridPreviewTask = this.player.getScheduledExecutor().schedule(
-          () -> this.startMemoryGridTraversal(challenge),
-          Settings.IMP.MAIN.ONE_TIME_CAPTCHA.MEMORY_GRID_PREVIEW_MILLIS,
-          TimeUnit.MILLISECONDS);
+      this.startMemoryGridPreview(this.memoryGridChallenge);
+    } else {
+      this.player.flushPackets();
     }
   }
 
@@ -645,19 +647,48 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     }
   }
 
-  private void startMemoryGridTraversal(MemoryGridChallenge challenge) {
+  private void startMemoryGridPreview(MemoryGridChallenge challenge) {
     if (challenge == null || challenge != this.memoryGridChallenge || this.state != CheckState.ONLY_CAPTCHA) {
       return;
     }
 
-    final MemoryGridChallenge.Traversal traversal = challenge.beginTraversal();
-    this.memoryGridTraversalActive = true;
+    final MemoryGridChallenge.Traversal preview = challenge.beginPreview();
+    this.memoryGridPreviewActive = true;
     this.onGround = false;
+    this.player.writePacket(this.plugin.getPackets().getNoAbilities());
     this.player.writePacket(this.plugin.getPackets().getMemoryGridPlatformPackets());
     if (!this.memoryGridGuideSpawned) {
       this.player.writePacket(this.plugin.getPackets().getMemoryGridGuidePackets());
       this.memoryGridGuideSpawned = true;
     }
+    this.player.writePacket(this.plugin.getPacketFactory().createPositionRotationPacket(
+        preview.x(), preview.y(), preview.z(), MemoryGridLayout.startYaw(), 0.0F,
+        false, preview.teleportId(), true));
+    PreparedPacket previewInstruction = this.plugin.getPackets().getMemoryGridPreviewInstruction();
+    if (previewInstruction != null) {
+      this.player.writePacket(previewInstruction);
+    }
+    this.player.flushPackets();
+    this.traceAdaptivePacket("state", "memory-grid-reading",
+        "started=true, teleportId=" + preview.teleportId());
+
+    this.memoryGridPreviewTask = this.player.getScheduledExecutor().schedule(
+        () -> this.startMemoryGridTraversal(challenge),
+        Settings.IMP.MAIN.ONE_TIME_CAPTCHA.MEMORY_GRID_PREVIEW_MILLIS,
+        TimeUnit.MILLISECONDS);
+  }
+
+  private void startMemoryGridTraversal(MemoryGridChallenge challenge) {
+    if (challenge == null || challenge != this.memoryGridChallenge || !this.memoryGridPreviewActive
+        || this.state != CheckState.ONLY_CAPTCHA) {
+      return;
+    }
+
+    final MemoryGridChallenge.Traversal traversal = challenge.activateTraversal();
+    this.memoryGridPreviewActive = false;
+    this.memoryGridTraversalActive = true;
+    this.onGround = false;
+    this.player.writePacket(this.plugin.getPackets().getMemoryGridMovementAbilities());
     this.player.writePacket(this.plugin.getPacketFactory().createPositionRotationPacket(
         traversal.x(), traversal.y(), traversal.z(), MemoryGridLayout.startYaw(), 0.0F,
         false, traversal.teleportId(), true));
@@ -692,6 +723,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.cancelMemoryGridPreview();
     this.memoryGridChallenge = null;
     this.pendingMemoryGridCaptcha = null;
+    this.memoryGridPreviewActive = false;
     this.memoryGridTraversalActive = false;
   }
 

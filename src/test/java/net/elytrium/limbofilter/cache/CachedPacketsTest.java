@@ -67,4 +67,37 @@ class CachedPacketsTest {
     assertEquals(160, CachedPackets.memoryGridPreviewTitleStayTicks(8_000));
     assertEquals(161, CachedPackets.memoryGridPreviewTitleStayTicks(8_001));
   }
+
+  @Test
+  void restoresNormalWalkingAbilitiesWhenTheGridOpens() {
+    Object packet = new Object();
+    AtomicReference<Byte> flags = new AtomicReference<>();
+    AtomicReference<Float> flyingSpeed = new AtomicReference<>();
+    AtomicReference<Float> walkingSpeed = new AtomicReference<>();
+    AtomicReference<Object> prepared = new AtomicReference<>();
+
+    PacketFactory packetFactory = (PacketFactory) Proxy.newProxyInstance(
+        PacketFactory.class.getClassLoader(), new Class<?>[]{PacketFactory.class},
+        (proxy, method, arguments) -> {
+          assertEquals("createPlayerAbilitiesPacket", method.getName());
+          flags.set((Byte) arguments[0]);
+          flyingSpeed.set((Float) arguments[1]);
+          walkingSpeed.set((Float) arguments[2]);
+          return packet;
+        });
+    PreparedPacket preparedPacket = (PreparedPacket) Proxy.newProxyInstance(
+        PreparedPacket.class.getClassLoader(), new Class<?>[]{PreparedPacket.class},
+        (proxy, method, arguments) -> {
+          assertEquals("prepare", method.getName());
+          prepared.set(arguments[0]);
+          return proxy;
+        });
+
+    CachedPackets.prepareMemoryGridMovementAbilities(preparedPacket, packetFactory);
+
+    assertEquals((byte) 0, flags.get());
+    assertEquals(0.05F, flyingSpeed.get());
+    assertEquals(0.1F, walkingSpeed.get());
+    assertSame(packet, prepared.get());
+  }
 }

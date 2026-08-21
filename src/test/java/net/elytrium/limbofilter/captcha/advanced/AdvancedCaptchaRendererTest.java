@@ -110,6 +110,14 @@ class AdvancedCaptchaRendererTest {
   }
 
   @Test
+  void memoryGridMirrorsTheGuideHorizontallyForThePlayersView() {
+    RenderedCaptcha captcha = this.renderer.render(CaptchaFamily.MEMORY_GRID, new Random(42L));
+
+    assertEquals(new java.awt.Color(181, 58, 52).getRGB(), captcha.image().getRGB(2 * 128 + 24, 24));
+    assertEquals(new java.awt.Color(226, 190, 49).getRGB(), captcha.image().getRGB(24, 24));
+  }
+
+  @Test
   void rejectsPartialMapWallDimensions() {
     BufferedImage partialWall = new BufferedImage(2 * 128, 128, BufferedImage.TYPE_INT_ARGB);
 

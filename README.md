@@ -17,7 +17,7 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.18` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.19` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
@@ -100,9 +100,10 @@ instruction-only; the six lower frames are selectable. Duplicate packets for
 the last selected frame are ignored to tolerate main/off-hand client echoes,
 while another selectable frame fails the current attempt immediately.
 
-`MEMORY_GRID` reuses that wall for a three-step route preview. After the bounded
-preview delay, the player is moved to a real colored-wool grid with the numbered
-route kept visible above its far edge. The challenge
+`MEMORY_GRID` puts the player directly on a frozen start pad in front of a real
+colored-wool grid, with the numbered route visible above its far edge. After the
+bounded reading delay, normal walking abilities are restored and the player is
+reset to the start position. The challenge
 requires the teleport nonce and grounded movement through the three adjacent
 cells in order; chat, item-frame clicks, duplicate positions, and movement
 outside the grid cannot complete it. Its dedicated bounded pool is served only

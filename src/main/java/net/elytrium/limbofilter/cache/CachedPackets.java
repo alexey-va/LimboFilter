@@ -73,6 +73,7 @@ public class CachedPackets {
   private PreparedPacket adaptiveVerificationPlatformPackets;
   private PreparedPacket memoryGridPlatformPackets;
   private PreparedPacket memoryGridGuidePackets;
+  private PreparedPacket memoryGridMovementAbilities;
   private PreparedPacket memoryGridPreviewInstruction;
   private PreparedPacket memoryGridGoInstruction;
 
@@ -90,6 +91,7 @@ public class CachedPackets {
         this.createAdaptiveVerificationPlatformPackets(limboFactory, packetFactory, filterWorld);
     this.memoryGridPlatformPackets = this.createMemoryGridPlatformPackets(limboFactory, packetFactory, filterWorld);
     this.memoryGridGuidePackets = this.createMemoryGridGuidePackets(limboFactory);
+    this.memoryGridMovementAbilities = this.createMemoryGridMovementAbilities(limboFactory, packetFactory);
     this.memoryGridPreviewInstruction = this.createTitleAndChatPackets(
         limboFactory, strings.MEMORY_GRID_PREVIEW_TITLE, strings.MEMORY_GRID_PREVIEW_SUBTITLE, "",
         memoryGridPreviewTitleStayTicks(Settings.IMP.MAIN.ONE_TIME_CAPTCHA.MEMORY_GRID_PREVIEW_MILLIS));
@@ -265,6 +267,7 @@ public class CachedPackets {
     this.singleDispose(this.adaptiveVerificationPlatformPackets);
     this.singleDispose(this.memoryGridPlatformPackets);
     this.singleDispose(this.memoryGridGuidePackets);
+    this.singleDispose(this.memoryGridMovementAbilities);
     this.singleDispose(this.memoryGridPreviewInstruction);
     this.singleDispose(this.memoryGridGoInstruction);
   }
@@ -374,6 +377,16 @@ public class CachedPackets {
           );
     }
     return preparedPacket.build();
+  }
+
+  private PreparedPacket createMemoryGridMovementAbilities(LimboFactory limboFactory, PacketFactory packetFactory) {
+    PreparedPacket preparedPacket = limboFactory.createPreparedPacket();
+    prepareMemoryGridMovementAbilities(preparedPacket, packetFactory);
+    return preparedPacket.build();
+  }
+
+  static void prepareMemoryGridMovementAbilities(PreparedPacket preparedPacket, PacketFactory packetFactory) {
+    preparedPacket.prepare(packetFactory.createPlayerAbilitiesPacket((byte) 0, 0.05F, 0.1F));
   }
 
   static void prepareLevelChunksLoadStart(PreparedPacket preparedPacket, PacketFactory packetFactory) {
@@ -597,6 +610,10 @@ public class CachedPackets {
 
   public PreparedPacket getMemoryGridGuidePackets() {
     return this.memoryGridGuidePackets;
+  }
+
+  public PreparedPacket getMemoryGridMovementAbilities() {
+    return this.memoryGridMovementAbilities;
   }
 
   public PreparedPacket getMemoryGridPreviewInstruction() {

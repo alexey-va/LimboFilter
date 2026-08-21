@@ -125,7 +125,7 @@ public class Settings extends YamlConfig {
       public int POOL_SIZE = 128;
       public int REFILL_LOW_WATER_MARK = 32;
       public int GENERATOR_THREADS = 1;
-      @Comment("How long the numbered memory-grid route stays visible before walking starts.")
+      @Comment("How long the player reads the memory-grid guide at the start pad before walking starts.")
       public long MEMORY_GRID_PREVIEW_MILLIS = 8000;
       @Comment({
           "Generate and serve MEMORY_GRID only to these Java usernames.",
@@ -498,9 +498,9 @@ public class Settings extends YamlConfig {
       public String CHECKING_WRONG_CAPTCHA_CHAT = "{PRFX} &cYou have entered the captcha incorrectly, you have &6{0} &cattempts left.";
       public String CHECKING_CAPTCHA_TITLE = "&aPlease solve the captcha.";
       public String CHECKING_CAPTCHA_SUBTITLE = "&aYou have &6{0} &aattempts.";
-      public String MEMORY_GRID_PREVIEW_TITLE = "&aRemember the path: 1 -> 2 -> 3";
-      public String MEMORY_GRID_PREVIEW_SUBTITLE = "&7You will repeat it on the colored floor.";
-      public String MEMORY_GRID_GO_TITLE = "&aWalk the colors: 1 -> 2 -> 3";
+      public String MEMORY_GRID_PREVIEW_TITLE = "&aRead the guide above the grid";
+      public String MEMORY_GRID_PREVIEW_SUBTITLE = "&7Walking starts in 8 seconds.";
+      public String MEMORY_GRID_GO_TITLE = "&aStart walking: 1 -> 2 -> 3";
       public String MEMORY_GRID_GO_SUBTITLE = "&7The numbered guide stays above the grid.";
 
       public String SUCCESSFUL_CRACKED = "{PRFX} &aSuccessfully passed the Bot-Filter check.";
