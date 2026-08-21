@@ -187,18 +187,22 @@ public class LimboFilter {
       setSerializer(new Serializer(serializer));
     }
 
-    int captchaCount = Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED
+    Settings.MAIN.ONE_TIME_CAPTCHA oneTimeCaptcha = Settings.IMP.MAIN.ONE_TIME_CAPTCHA;
+    int captchaCount = oneTimeCaptcha.ENABLED
         ? Settings.IMP.MAIN.ONE_TIME_CAPTCHA.POOL_SIZE
         : Settings.IMP.MAIN.CAPTCHA_GENERATOR.IMAGES_COUNT;
-    long captchaGeneratorRamConsumed = (long) MapData.MAP_SIZE * captchaCount;
 
     long mapsPerCaptcha = Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
         ? (long) Settings.IMP.MAIN.FRAMED_CAPTCHA.WIDTH * Settings.IMP.MAIN.FRAMED_CAPTCHA.HEIGHT : 1L;
-    if (Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED
-        && Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES.stream().anyMatch(CaptchaFamily::usesThreeByThreeWall)) {
+    if (oneTimeCaptcha.ENABLED
+        && oneTimeCaptcha.FAMILIES.stream().anyMatch(CaptchaFamily::usesThreeByThreeWall)) {
       mapsPerCaptcha = Math.max(mapsPerCaptcha, 9L);
     }
-    captchaGeneratorRamConsumed *= mapsPerCaptcha;
+    long totalMaps = captchaCount * mapsPerCaptcha;
+    if (oneTimeCaptcha.ENABLED && !oneTimeCaptcha.MEMORY_GRID_TEST_USERNAMES.isEmpty()) {
+      totalMaps += (long) oneTimeCaptcha.MEMORY_GRID_TEST_POOL_SIZE * 9L;
+    }
+    long captchaGeneratorRamConsumed = (long) MapData.MAP_SIZE * totalMaps;
 
     if (Settings.IMP.MAIN.CAPTCHA_GENERATOR.PREPARE_CAPTCHA_PACKETS) {
       captchaGeneratorRamConsumed *= ProtocolVersion.values().length / 2f;
@@ -257,8 +261,9 @@ public class LimboFilter {
     );
 
     // Make LimboAPI preload parent to captcha chunks to ensure that Sodium can properly render captcha.
-    boolean interactiveCaptchaEnabled = Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED
-        && Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES.stream().anyMatch(CaptchaFamily::usesThreeByThreeWall);
+    boolean interactiveCaptchaEnabled = oneTimeCaptcha.ENABLED
+        && (oneTimeCaptcha.FAMILIES.stream().anyMatch(CaptchaFamily::usesThreeByThreeWall)
+            || !oneTimeCaptcha.MEMORY_GRID_TEST_USERNAMES.isEmpty());
     if (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED || interactiveCaptchaEnabled) {
       Settings.MAIN.FRAMED_CAPTCHA settings = Settings.IMP.MAIN.FRAMED_CAPTCHA;
       int captchaFrameWidth = interactiveCaptchaEnabled ? Math.max(3, settings.WIDTH) : settings.WIDTH;
@@ -424,8 +429,9 @@ public class LimboFilter {
       }
     }
 
-    if (!Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED
-        || !Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES.contains(CaptchaFamily.MEMORY_GRID)) {
+    Settings.MAIN.ONE_TIME_CAPTCHA captcha = Settings.IMP.MAIN.ONE_TIME_CAPTCHA;
+    if (!captcha.ENABLED || (captcha.MEMORY_GRID_TEST_USERNAMES.isEmpty()
+        && !captcha.FAMILIES.contains(CaptchaFamily.MEMORY_GRID))) {
       return;
     }
 
@@ -586,8 +592,8 @@ public class LimboFilter {
     return this.tcpListener;
   }
 
-  public CaptchaHolder getNextCaptcha() {
-    return this.generator.getNextCaptcha();
+  public CaptchaHolder getNextCaptcha(String username) {
+    return this.generator.getNextCaptcha(username);
   }
 
   public VirtualWorld getFilterWorld() {

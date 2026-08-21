@@ -17,7 +17,7 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.16` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.17` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
@@ -69,7 +69,9 @@ one-time-captcha:
   refill-low-water-mark: 32
   generator-threads: 1
   memory-grid-preview-millis: 3000
-  families: [TEXT, ARITHMETIC, MARKED_GLYPHS, ITEM_SEQUENCE, MEMORY_GRID]
+  memory-grid-test-usernames: [YourMemoryGridTestPlayer]
+  memory-grid-test-pool-size: 16
+  families: [TEXT, ARITHMETIC, MARKED_GLYPHS, ITEM_SEQUENCE]
 ```
 
 `test-usernames` is case-insensitive. It is intended for a real-client pilot:
@@ -102,7 +104,9 @@ while another selectable frame fails the current attempt immediately.
 preview delay, the player is moved to a real colored-wool grid. The challenge
 requires the teleport nonce and grounded movement through the three adjacent
 cells in order; chat, item-frame clicks, duplicate positions, and movement
-outside the grid cannot complete it.
+outside the grid cannot complete it. Its dedicated bounded pool is served only
+to `memory-grid-test-usernames`, so an experimental physical CAPTCHA can be
+piloted without changing the CAPTCHA family used for other players.
 
 Adaptive sessions preload the real collision-platform chunks before waiting
 for movement. Minecraft 1.20.3+ first receives a temporary out-of-height anchor

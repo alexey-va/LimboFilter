@@ -579,7 +579,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
 
   private void sendCaptcha() {
     this.clearMemoryGridState();
-    CaptchaHolder captchaHolder = this.plugin.getNextCaptcha();
+    CaptchaHolder captchaHolder = this.plugin.getNextCaptcha(this.proxyPlayer.getUsername());
 
     if (captchaHolder == null) {
       this.player.closeWith(this.plugin.getPackets().getCaptchaNotReadyYet());

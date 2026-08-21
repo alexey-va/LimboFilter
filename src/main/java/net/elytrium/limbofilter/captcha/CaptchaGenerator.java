@@ -61,6 +61,7 @@ import net.elytrium.limbofilter.captcha.advanced.RenderedCaptcha;
 import net.elytrium.limbofilter.captcha.map.CraftMapCanvas;
 import net.elytrium.limbofilter.captcha.painter.CaptchaPainter;
 import net.elytrium.limbofilter.captcha.painter.RenderedFont;
+import net.elytrium.limbofilter.verification.AdaptiveModeSelector;
 
 public class CaptchaGenerator {
 
@@ -75,6 +76,7 @@ public class CaptchaGenerator {
   private CachedCaptcha cachedCaptcha;
   private CachedCaptcha tempCachedCaptcha;
   private CaptchaRefillController<CaptchaHolder> oneTimeController;
+  private CaptchaRefillController<CaptchaHolder> memoryGridController;
   private AdvancedCaptchaRenderer advancedRenderer;
   private final ThreadLocal<SecureRandom> secureRandom = ThreadLocal.withInitial(SecureRandom::new);
   private ThreadLocal<Iterator<CraftMapCanvas>> backplatesIterator;
@@ -223,6 +225,17 @@ public class CaptchaGenerator {
         failure -> LimboFilter.getLogger().error("Unable to generate one-time captcha", failure)
     );
     this.oneTimeController.start();
+    if (!settings.MEMORY_GRID_TEST_USERNAMES.isEmpty()) {
+      OneTimeCaptchaPool<CaptchaHolder> memoryGridPool = new OneTimeCaptchaPool<>(
+          settings.MEMORY_GRID_TEST_POOL_SIZE, Math.max(1, settings.MEMORY_GRID_TEST_POOL_SIZE / 4));
+      this.memoryGridController = new CaptchaRefillController<>(
+          memoryGridPool,
+          settings.GENERATOR_THREADS,
+          () -> this.createOneTimeCaptcha(CaptchaFamily.MEMORY_GRID),
+          failure -> LimboFilter.getLogger().error("Unable to generate memory-grid captcha", failure)
+      );
+      this.memoryGridController.start();
+    }
   }
 
   private CraftMapCanvas createCraftMapCanvas() {
@@ -280,6 +293,9 @@ public class CaptchaGenerator {
   public void generateImages() {
     if (this.oneTimeController != null) {
       this.oneTimeController.requestRefill();
+      if (this.memoryGridController != null) {
+        this.memoryGridController.requestRefill();
+      }
       return;
     }
     if (this.shouldStop) {
@@ -360,6 +376,14 @@ public class CaptchaGenerator {
     SecureRandom random = this.secureRandom.get();
     List<CaptchaFamily> families = Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES;
     CaptchaFamily family = families.get(random.nextInt(families.size()));
+    return this.createOneTimeCaptcha(family, random);
+  }
+
+  private CaptchaHolder createOneTimeCaptcha(CaptchaFamily family) {
+    return this.createOneTimeCaptcha(family, this.secureRandom.get());
+  }
+
+  private CaptchaHolder createOneTimeCaptcha(CaptchaFamily family, SecureRandom random) {
     RenderedCaptcha rendered = this.advancedRenderer.render(family, random);
 
     int mapWidth = family.usesThreeByThreeWall()
@@ -429,6 +453,10 @@ public class CaptchaGenerator {
       this.oneTimeController.shutdown(CaptchaHolder::release);
       this.oneTimeController = null;
     }
+    if (this.memoryGridController != null) {
+      this.memoryGridController.shutdown(CaptchaHolder::release);
+      this.memoryGridController = null;
+    }
     this.shouldStop = true;
     if (this.executor != null) {
       this.executor.shutdownNow();
@@ -443,7 +471,11 @@ public class CaptchaGenerator {
     }
   }
 
-  public CaptchaHolder getNextCaptcha() {
+  public CaptchaHolder getNextCaptcha(String username) {
+    if (this.memoryGridController != null && AdaptiveModeSelector.shouldUseMemoryGrid(
+        Settings.IMP.MAIN.ONE_TIME_CAPTCHA.MEMORY_GRID_TEST_USERNAMES, username)) {
+      return this.memoryGridController.acquire();
+    }
     if (this.oneTimeController != null) {
       return this.oneTimeController.acquire();
     } else if (this.cachedCaptcha == null) {

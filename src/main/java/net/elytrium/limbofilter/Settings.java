@@ -127,12 +127,17 @@ public class Settings extends YamlConfig {
       public int GENERATOR_THREADS = 1;
       @Comment("How long the numbered memory-grid route stays visible before walking starts.")
       public long MEMORY_GRID_PREVIEW_MILLIS = 3000;
+      @Comment({
+          "Generate and serve MEMORY_GRID only to these Java usernames.",
+          "Matching is case-insensitive. Leave empty to keep the experimental family disabled."
+      })
+      public List<String> MEMORY_GRID_TEST_USERNAMES = List.of();
+      public int MEMORY_GRID_TEST_POOL_SIZE = 16;
       public List<CaptchaFamily> FAMILIES = List.of(
           CaptchaFamily.TEXT,
           CaptchaFamily.ARITHMETIC,
           CaptchaFamily.MARKED_GLYPHS,
-          CaptchaFamily.ITEM_SEQUENCE,
-          CaptchaFamily.MEMORY_GRID
+          CaptchaFamily.ITEM_SEQUENCE
       );
     }
 
@@ -560,6 +565,10 @@ public class Settings extends YamlConfig {
     }
     if (captcha.MEMORY_GRID_PREVIEW_MILLIS < 1_500 || captcha.MEMORY_GRID_PREVIEW_MILLIS > 10_000) {
       throw new IllegalArgumentException("memory-grid-preview-millis must be in range 1500..10000");
+    }
+    Objects.requireNonNull(captcha.MEMORY_GRID_TEST_USERNAMES, "memory-grid-test-usernames");
+    if (captcha.MEMORY_GRID_TEST_POOL_SIZE < 4 || captcha.MEMORY_GRID_TEST_POOL_SIZE > 64) {
+      throw new IllegalArgumentException("memory-grid-test-pool-size must be in range 4..64");
     }
     captcha.FAMILIES = normalizeCaptchaFamilies(captcha.FAMILIES);
     if (prepareCaptchaPackets) {

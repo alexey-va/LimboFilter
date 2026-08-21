@@ -55,6 +55,12 @@ public final class AdaptiveModeSelector {
     return enabled && containsUsername(debugUsernames, username);
   }
 
+  public static boolean shouldUseMemoryGrid(List<String> testUsernames, String username) {
+    Objects.requireNonNull(testUsernames, "testUsernames");
+    Objects.requireNonNull(username, "username");
+    return containsUsername(testUsernames, username);
+  }
+
   private static boolean containsUsername(List<String> usernames, String username) {
     return usernames.stream()
         .filter(Objects::nonNull)

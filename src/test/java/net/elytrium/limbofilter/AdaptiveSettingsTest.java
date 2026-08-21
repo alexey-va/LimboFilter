@@ -67,6 +67,7 @@ class AdaptiveSettingsTest {
     assertEquals(List.of(), adaptive.TEST_USERNAMES);
     assertEquals(List.of(), adaptive.FULL_TEST_USERNAMES);
     assertEquals(List.of(), adaptive.PACKET_DEBUG_USERNAMES);
+    assertEquals(List.of(), new Settings.MAIN.ONE_TIME_CAPTCHA().MEMORY_GRID_TEST_USERNAMES);
   }
 
   @Test
@@ -116,6 +117,14 @@ class AdaptiveSettingsTest {
 
     captcha = new Settings.MAIN.ONE_TIME_CAPTCHA();
     captcha.MEMORY_GRID_PREVIEW_MILLIS = 10_001;
+    assertInvalid(new Settings.MAIN.ADAPTIVE_VERIFICATION(), captcha, false);
+
+    captcha = new Settings.MAIN.ONE_TIME_CAPTCHA();
+    captcha.MEMORY_GRID_TEST_POOL_SIZE = 3;
+    assertInvalid(new Settings.MAIN.ADAPTIVE_VERIFICATION(), captcha, false);
+
+    captcha = new Settings.MAIN.ONE_TIME_CAPTCHA();
+    captcha.MEMORY_GRID_TEST_POOL_SIZE = 65;
     assertInvalid(new Settings.MAIN.ADAPTIVE_VERIFICATION(), captcha, false);
 
     captcha = new Settings.MAIN.ONE_TIME_CAPTCHA();

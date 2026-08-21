@@ -93,4 +93,14 @@ class AdaptiveModeSelectorTest {
     assertFalse(AdaptiveModeSelector.shouldTracePackets(
         true, List.of(), "GrocerMC"));
   }
+
+  @Test
+  void enablesMemoryGridOnlyForAnExplicitAllowlistedUsername() {
+    assertTrue(AdaptiveModeSelector.shouldUseMemoryGrid(
+        List.of("  GrocerMC  "), "grocermc"));
+    assertFalse(AdaptiveModeSelector.shouldUseMemoryGrid(
+        List.of("GrocerMC"), "AnotherPlayer"));
+    assertFalse(AdaptiveModeSelector.shouldUseMemoryGrid(
+        List.of(), "GrocerMC"));
+  }
 }
