@@ -290,6 +290,7 @@ public class CachedPackets {
     PreparedPacket preparedPacket = limboFactory.createPreparedPacket().prepare(
         this.createUpdateViewPosition(packetFactory, 0, 0), ProtocolVersion.MINECRAFT_1_14
     );
+    prepareLevelChunksLoadStart(preparedPacket, packetFactory);
     for (ChallengeProgramFactory.ChunkCoordinate coordinate : ChallengeProgramFactory.platformChunks()) {
       VirtualChunk chunk = filterWorld.getChunkOrNew(coordinate.x() << 4, coordinate.z() << 4);
       preparedPacket.prepare(packetFactory.createChunkDataPacket(
@@ -297,6 +298,12 @@ public class CachedPackets {
       ));
     }
     return preparedPacket.build();
+  }
+
+  static void prepareLevelChunksLoadStart(PreparedPacket preparedPacket, PacketFactory packetFactory) {
+    preparedPacket.prepare(
+        packetFactory.createChangeGameStatePacket(13, 0.0f), ProtocolVersion.MINECRAFT_1_20_3
+    );
   }
 
   private PreparedPacket createFallingCheckTitleAndChatPackets(LimboFactory limboFactory,

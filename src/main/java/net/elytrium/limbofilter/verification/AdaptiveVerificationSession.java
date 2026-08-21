@@ -36,6 +36,7 @@ public final class AdaptiveVerificationSession {
   private boolean teleportConfirmed;
   private boolean awaitingInitialMotion;
   private int initialPositionEchoes;
+  private int interPhaseMovementTail;
   private MotionSample previous;
   private VerificationResult result = VerificationResult.PENDING;
 
@@ -89,6 +90,7 @@ public final class AdaptiveVerificationSession {
     this.teleportConfirmed = true;
     this.awaitingInitialMotion = true;
     this.initialPositionEchoes = 0;
+    this.interPhaseMovementTail = 0;
     this.previous = new MotionSample(0, instruction.start(), instruction.initialVelocity(), false);
     this.result = VerificationResult.PENDING;
     return this.result;
@@ -98,7 +100,13 @@ public final class AdaptiveVerificationSession {
     if (this.result.terminal()) {
       return this.result;
     }
-    if (!this.started || !this.teleportConfirmed) {
+    if (!this.started) {
+      return this.fail(VerificationResult.FAIL_PROTOCOL);
+    }
+    if (!this.teleportConfirmed) {
+      if (this.phaseIndex > 0 && ++this.interPhaseMovementTail <= this.profile.maxPacketGapTicks()) {
+        return this.expired() ? this.fail(VerificationResult.TIMEOUT) : VerificationResult.PENDING;
+      }
       return this.fail(VerificationResult.FAIL_PROTOCOL);
     }
     if (++this.samples > this.maxSamplesPerPhase) {
@@ -149,6 +157,7 @@ public final class AdaptiveVerificationSession {
     ++this.phaseIndex;
     this.samples = 0;
     this.teleportConfirmed = false;
+    this.interPhaseMovementTail = 0;
     this.previous = null;
     this.result = VerificationResult.PHASE_PASSED;
     return this.result;

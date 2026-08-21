@@ -92,7 +92,7 @@ class AdaptiveVerificationSessionTest {
   }
 
   @Test
-  void advancesOnlyAfterCollisionAndRequiresTheNextNonce() {
+  void toleratesABoundedMovementTailWhileWaitingForTheNextNonce() {
     ChallengeInstruction first = new ChallengeInstruction(
         ChallengePhase.FALL_COLLISION, 1, new MotionVector(0.0, 0.05, 0.0), MotionVector.ZERO, 0.0, 2.0);
     ChallengeInstruction second = new ChallengeInstruction(
@@ -104,7 +104,27 @@ class AdaptiveVerificationSessionTest {
     session.confirmTeleport(1);
     assertEquals(VerificationResult.PHASE_PASSED, session.move(new MotionVector(0.0, 0.0, 0.0), true));
     assertEquals(second, session.currentInstruction());
-    assertEquals(VerificationResult.FAIL_PROTOCOL, session.move(new MotionVector(4.0, 0.0, 4.0), true));
+    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.0, 0.0, 0.0), true));
+    assertEquals(VerificationResult.PENDING, session.confirmTeleport(2));
+    assertEquals(VerificationResult.PASS, session.move(new MotionVector(4.0, 0.0, 4.0), true));
+  }
+
+  @Test
+  void rejectsAnUnboundedMovementTailBetweenPhases() {
+    ChallengeInstruction first = new ChallengeInstruction(
+        ChallengePhase.FALL_COLLISION, 3, new MotionVector(0.0, 0.05, 0.0), MotionVector.ZERO, 0.0, 2.0);
+    ChallengeInstruction second = new ChallengeInstruction(
+        ChallengePhase.FALL_COLLISION, 4, new MotionVector(4.0, 0.05, 4.0), MotionVector.ZERO, 0.0, 2.0);
+    AdaptiveVerificationSession session = new AdaptiveVerificationSession(
+        new ChallengeProgram(List.of(first, second)), PROFILE, 160, 12_000L, () -> 0L);
+
+    session.start();
+    session.confirmTeleport(3);
+    assertEquals(VerificationResult.PHASE_PASSED, session.move(new MotionVector(0.0, 0.0, 0.0), true));
+    for (int i = 0; i < PROFILE.maxPacketGapTicks(); ++i) {
+      assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.0, 0.0, 0.0), true));
+    }
+    assertEquals(VerificationResult.FAIL_PROTOCOL, session.move(new MotionVector(0.0, 0.0, 0.0), true));
   }
 
   @Test
