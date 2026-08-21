@@ -17,7 +17,7 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.13` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.14` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
@@ -98,6 +98,11 @@ client update order. That first impulse response remains strict; subsequent
 ticks use a bounded horizontal-control envelope and rebase accepted single-tick
 motion so normal player input and small client drift do not accumulate into a
 false rejection.
+
+The loading anchor also has a separate bounded movement tail before the first
+challenge teleport confirmation. This absorbs vanilla movement already queued
+for the out-of-height anchor without weakening the nonce or trajectory checks;
+sessions that do not use the loading anchor remain strict.
 
 Keep `captcha-generator.prepare-captcha-packets: false` while the one-time pool
 is enabled. Reload fails fast if this invariant or any resource bound is

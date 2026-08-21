@@ -56,6 +56,52 @@ class AdaptiveVerificationSessionTest {
   }
 
   @Test
+  void acceptsABoundedLoadingAnchorTailBeforeTheFirstChallengeNonce() {
+    ChallengeInstruction instruction = new ChallengeInstruction(
+        ChallengePhase.FALL_COLLISION, 126, new MotionVector(0.0, 1.0, 0.0), MotionVector.ZERO, 0.0, 2.0);
+    AdaptiveVerificationSession session = loadingAnchorSession(instruction);
+
+    session.start();
+    assertEquals(VerificationResult.PENDING,
+        session.move(new MotionVector(0.0, 4096.0, 0.0), false));
+    assertEquals(VerificationResult.PENDING,
+        session.move(new MotionVector(0.0, 4095.921599998474, 0.0), false));
+    assertEquals(VerificationResult.PENDING,
+        session.move(new MotionVector(0.0, 4095.7663679939574, 0.0), false));
+    assertEquals(VerificationResult.PENDING,
+        session.move(new MotionVector(0.0, 4095.5358406250443, 0.0), false));
+    assertEquals(VerificationResult.PENDING, session.confirmTeleport(126));
+    assertEquals(VerificationResult.PENDING,
+        session.move(new MotionVector(0.0, 0.9216, 0.0), false));
+  }
+
+  @Test
+  void rejectsAnUnboundedLoadingAnchorTailBeforeTheFirstChallengeNonce() {
+    ChallengeInstruction instruction = new ChallengeInstruction(
+        ChallengePhase.FALL_COLLISION, 127, new MotionVector(0.0, 1.0, 0.0), MotionVector.ZERO, 0.0, 2.0);
+    AdaptiveVerificationSession session = loadingAnchorSession(instruction);
+
+    session.start();
+    for (int i = 0; i < PROFILE.maxPacketGapTicks(); ++i) {
+      assertEquals(VerificationResult.PENDING,
+          session.move(new MotionVector(0.0, 4096.0 - i, 0.0), false));
+    }
+    assertEquals(VerificationResult.FAIL_PROTOCOL,
+        session.move(new MotionVector(0.0, 4092.0, 0.0), false));
+  }
+
+  @Test
+  void rejectsMovementBeforeTheFirstNonceWithoutALoadingAnchor() {
+    ChallengeInstruction instruction = new ChallengeInstruction(
+        ChallengePhase.FALL_COLLISION, 128, new MotionVector(0.0, 1.0, 0.0), MotionVector.ZERO, 0.0, 2.0);
+    AdaptiveVerificationSession session = session(instruction);
+
+    session.start();
+    assertEquals(VerificationResult.FAIL_PROTOCOL,
+        session.move(new MotionVector(0.0, 4096.0, 0.0), false));
+  }
+
+  @Test
   void rejectsAnInitialPositionThatRemainsFrozenPastThePacketGapBound() {
     ChallengeInstruction instruction = new ChallengeInstruction(
         ChallengePhase.FALL_COLLISION, 125, new MotionVector(0.0, 1.0, 0.0), MotionVector.ZERO, 0.0, 2.0);
@@ -216,5 +262,10 @@ class AdaptiveVerificationSessionTest {
   private static AdaptiveVerificationSession session(ChallengeInstruction instruction) {
     return new AdaptiveVerificationSession(
         new ChallengeProgram(List.of(instruction)), PROFILE, 160, 12_000L, () -> 0L);
+  }
+
+  private static AdaptiveVerificationSession loadingAnchorSession(ChallengeInstruction instruction) {
+    return new AdaptiveVerificationSession(
+        new ChallengeProgram(List.of(instruction)), PROFILE, 160, 12_000L, () -> 30_000L, true);
   }
 }

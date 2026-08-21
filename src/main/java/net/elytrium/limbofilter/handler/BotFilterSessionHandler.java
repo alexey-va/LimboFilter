@@ -576,7 +576,8 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
         : PhysicsProfile.javaLegacy(settings.POSITION_TOLERANCE, settings.COLLISION_TOLERANCE, settings.MAX_PACKET_GAP_TICKS);
     ChallengeProgram program = ChallengeProgramFactory.create(profile, new SecureRandom(), settings.PHASES_PER_SESSION);
     return new AdaptiveVerificationSession(
-        program, profile, settings.MAX_SAMPLES_PER_PHASE, settings.MAX_SESSION_MILLIS, System::currentTimeMillis);
+        program, profile, settings.MAX_SAMPLES_PER_PHASE, settings.MAX_SESSION_MILLIS,
+        System::currentTimeMillis, AdaptiveLoadingGate.required(this.version));
   }
 
   private void sendAdaptiveInstruction(ChallengeInstruction instruction) {
