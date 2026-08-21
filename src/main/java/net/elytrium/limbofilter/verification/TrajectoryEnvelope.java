@@ -19,6 +19,8 @@ package net.elytrium.limbofilter.verification;
 
 public final class TrajectoryEnvelope {
 
+  private static final double MAX_HORIZONTAL_CONTROL_DELTA_PER_TICK = 0.08;
+
   private TrajectoryEnvelope() {
   }
 
@@ -31,9 +33,16 @@ public final class TrajectoryEnvelope {
     MotionSample predicted = previous;
     for (int gap = 1; gap <= profile.maxPacketGapTicks(); ++gap) {
       predicted = VanillaPhysics.next(predicted, profile, platformTopY);
-      double tolerance = predicted.onGround() ? profile.collisionTolerance() : profile.positionTolerance();
-      if (predicted.onGround() == onGround && within(actualPosition, predicted.position(), tolerance)) {
-        return new TrajectoryMatch(true, gap, predicted, predicted.onGround());
+      double verticalTolerance = predicted.onGround()
+          ? profile.collisionTolerance() : profile.positionTolerance();
+      double horizontalTolerance = verticalTolerance;
+      if (previous.tick() > 0) {
+        horizontalTolerance += MAX_HORIZONTAL_CONTROL_DELTA_PER_TICK * gap;
+      }
+      if (predicted.onGround() == onGround
+          && within(actualPosition, predicted.position(), horizontalTolerance, verticalTolerance)) {
+        return new TrajectoryMatch(true, gap,
+            acceptedSample(previous, predicted, actualPosition, gap), predicted.onGround());
       }
       if (predicted.onGround()) {
         break;
@@ -43,9 +52,25 @@ public final class TrajectoryEnvelope {
     return new TrajectoryMatch(false, 0, predicted, false);
   }
 
-  private static boolean within(MotionVector actual, MotionVector expected, double tolerance) {
-    return Math.abs(actual.x() - expected.x()) <= tolerance
-        && Math.abs(actual.y() - expected.y()) <= tolerance
-        && Math.abs(actual.z() - expected.z()) <= tolerance;
+  private static MotionSample acceptedSample(MotionSample previous, MotionSample predicted,
+                                             MotionVector actualPosition, int gap) {
+    MotionVector acceptedVelocity = predicted.velocity();
+    if (predicted.onGround()) {
+      acceptedVelocity = MotionVector.ZERO;
+    } else if (gap == 1) {
+      acceptedVelocity = new MotionVector(
+          actualPosition.x() - previous.position().x(),
+          actualPosition.y() - previous.position().y(),
+          actualPosition.z() - previous.position().z());
+    }
+    return new MotionSample(predicted.tick(), actualPosition, acceptedVelocity, predicted.onGround());
+  }
+
+  private static boolean within(MotionVector actual, MotionVector expected,
+                                double horizontalTolerance, double verticalTolerance) {
+    double deltaX = actual.x() - expected.x();
+    double deltaZ = actual.z() - expected.z();
+    return Math.hypot(deltaX, deltaZ) <= horizontalTolerance
+        && Math.abs(actual.y() - expected.y()) <= verticalTolerance;
   }
 }

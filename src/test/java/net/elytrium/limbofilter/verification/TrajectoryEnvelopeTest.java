@@ -65,6 +65,67 @@ class TrajectoryEnvelopeTest {
   }
 
   @Test
+  void acceptsBoundedVanillaControlAfterTheInitialImpulseAndRebasesMotion() {
+    MotionSample firstImpulseTick = new MotionSample(
+        1,
+        new MotionVector(4.1997997579483535, 115.31783333426651, -4.140488608596645),
+        new MotionVector(0.1997997579483533, 0.3178333342665067, -0.14048860859664447),
+        false);
+    MotionVector vanillaPosition = new MotionVector(
+        4.308890438459324, 115.550910006384, -4.217195397800108);
+
+    TrajectoryMatch match = TrajectoryEnvelope.match(
+        firstImpulseTick, vanillaPosition, false, PROFILE, 108.0);
+
+    assertTrue(match.matched());
+    assertEquals(vanillaPosition, match.predicted().position());
+    assertEquals(new MotionVector(
+        vanillaPosition.x() - firstImpulseTick.position().x(),
+        vanillaPosition.y() - firstImpulseTick.position().y(),
+        vanillaPosition.z() - firstImpulseTick.position().z()), match.predicted().velocity());
+  }
+
+  @Test
+  void rejectsUnboundedHorizontalControlAfterTheInitialImpulse() {
+    MotionSample firstImpulseTick = new MotionSample(
+        1, new MotionVector(0.2, 10.2, 0.0), new MotionVector(0.2, 0.2, 0.0), false);
+
+    assertFalse(TrajectoryEnvelope.match(
+        firstImpulseTick, new MotionVector(1.5, 10.3176, 0.0), false, PROFILE, 0.0).matched());
+  }
+
+  @Test
+  void rebasesAcceptedDriftBeforeTheNextLateFallSample() {
+    MotionVector tick19Velocity = new MotionVector(
+        -0.035728734275078784, -0.9637907774805827, 0.030817970994509437);
+    MotionVector tick19PredictedPosition = new MotionVector(
+        -5.8065969468444045, 109.30126605207413, 5.558287844119194);
+    MotionSample tick18 = new MotionSample(
+        18,
+        new MotionVector(
+            tick19PredictedPosition.x() - tick19Velocity.x(),
+            tick19PredictedPosition.y() - tick19Velocity.y(),
+            tick19PredictedPosition.z() - tick19Velocity.z()),
+        new MotionVector(
+            tick19Velocity.x() / PROFILE.horizontalDrag(),
+            tick19Velocity.y() / PROFILE.verticalDrag() + PROFILE.gravity(),
+            tick19Velocity.z() / PROFILE.horizontalDrag()),
+        false);
+    MotionVector tick19ActualPosition = new MotionVector(
+        tick19PredictedPosition.x(), tick19PredictedPosition.y() - 0.034, tick19PredictedPosition.z());
+
+    TrajectoryMatch tick19 = TrajectoryEnvelope.match(
+        tick18, tick19ActualPosition, false, PROFILE, 106.0);
+    TrajectoryMatch tick20 = TrajectoryEnvelope.match(
+        tick19.predicted(),
+        new MotionVector(-5.8391104414654045, 108.24293239114046, 5.5863324965394465),
+        false, PROFILE, 106.0);
+
+    assertTrue(tick19.matched());
+    assertTrue(tick20.matched());
+  }
+
+  @Test
   void usesCollisionToleranceOnlyForTheTerminalSnap() {
     MotionSample nearPlatform = new MotionSample(
         7, new MotionVector(0.0, 0.05, 0.0), MotionVector.ZERO, false);

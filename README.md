@@ -83,7 +83,10 @@ world. A bounded startup window accepts the duplicate initial-position echoes
 that vanilla sends before its first physics tick, without allowing a client to
 remain frozen past the configured packet-gap bound. The first impulse tick
 applies the server-provided delta before gravity and drag, matching the vanilla
-client update order.
+client update order. That first impulse response remains strict; subsequent
+ticks use a bounded horizontal-control envelope and rebase accepted single-tick
+motion so normal player input and small client drift do not accumulate into a
+false rejection.
 
 Keep `captcha-generator.prepare-captcha-packets: false` while the one-time pool
 is enabled. Reload fails fast if this invariant or any resource bound is

@@ -72,7 +72,9 @@ from Velocity and LimboAPI:
   gap limit, and supported capabilities for a protocol family.
 - `VanillaPhysics`: predicts one or more ticks from the previous state.
 - `TrajectoryEnvelope`: validates a sample against every allowed skipped-tick
-  prediction from one through the configured packet gap.
+  prediction from one through the configured packet gap. The first impulse
+  response is strict; later samples admit bounded horizontal player control
+  and rebase accepted single-tick motion to avoid cumulative client drift.
 - `ChallengeProgramFactory`: selects safe parameters from a supplied random
   source and emits an immutable program.
 - `ChallengeSession`: advances the phase state machine and returns structured
