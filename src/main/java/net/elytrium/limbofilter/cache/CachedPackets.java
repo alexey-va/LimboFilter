@@ -53,6 +53,7 @@ public class CachedPackets {
   private PreparedPacket fallingCheckPackets;
   private PreparedPacket fallingCheckTitleAndChat;
   private PreparedPacket[] captchaAttemptsPacket;
+  private PreparedPacket[] interactiveCaptchaAttemptsPacket;
   private PreparedPacket captchaFailed;
   private PreparedPacket fallingCheckFailed;
   private PreparedPacket timesUp;
@@ -67,13 +68,18 @@ public class CachedPackets {
   private PreparedPacket[] experience;
   private PreparedPacket captchaNotReadyYet;
   private PreparedPacket framedCaptchaPackets;
+  private PreparedPacket interactiveCaptchaPackets;
   private PreparedPacket adaptiveVerificationPlatformPackets;
 
   public void createPackets(LimboFactory limboFactory, PacketFactory packetFactory, VirtualWorld filterWorld) {
     Settings.MAIN.STRINGS strings = Settings.IMP.MAIN.STRINGS;
 
     this.captchaAttemptsPacket = this.createCaptchaAttemptsPacket(limboFactory, packetFactory, strings.CHECKING_CAPTCHA_TITLE,
-        strings.CHECKING_CAPTCHA_SUBTITLE, strings.CHECKING_CAPTCHA_CHAT, strings.CHECKING_WRONG_CAPTCHA_CHAT);
+        strings.CHECKING_CAPTCHA_SUBTITLE, strings.CHECKING_CAPTCHA_CHAT, strings.CHECKING_WRONG_CAPTCHA_CHAT,
+        !Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED);
+    this.interactiveCaptchaAttemptsPacket = this.createCaptchaAttemptsPacket(
+        limboFactory, packetFactory, strings.CHECKING_CAPTCHA_TITLE,
+        strings.CHECKING_CAPTCHA_SUBTITLE, strings.CHECKING_CAPTCHA_CHAT, strings.CHECKING_WRONG_CAPTCHA_CHAT, false);
     this.fallingCheckPackets = this.createFallingCheckPackets(limboFactory, packetFactory);
     this.adaptiveVerificationPlatformPackets =
         this.createAdaptiveVerificationPlatformPackets(limboFactory, packetFactory, filterWorld);
@@ -113,6 +119,7 @@ public class CachedPackets {
     this.createChatPacket(this.captchaNotReadyYet, strings.CAPTCHA_NOT_READY_YET);
 
     this.framedCaptchaPackets = this.createFramedCaptchaPackets(limboFactory);
+    this.interactiveCaptchaPackets = this.createCaptchaFramePackets(limboFactory, 3, 3);
   }
 
   private PreparedPacket createFramedCaptchaPackets(LimboFactory limboFactory) {
@@ -121,13 +128,18 @@ public class CachedPackets {
       return null;
     }
 
+    return this.createCaptchaFramePackets(limboFactory, settings.WIDTH, settings.HEIGHT);
+  }
+
+  private PreparedPacket createCaptchaFramePackets(LimboFactory limboFactory, int width, int height) {
+    Settings.MAIN.FRAMED_CAPTCHA settings = Settings.IMP.MAIN.FRAMED_CAPTCHA;
     Settings.MAIN.FRAMED_CAPTCHA.COORDS.OFFSET_1_7 offset = settings.COORDS.OFFSET_1_7;
 
     PreparedPacket preparedPacket = limboFactory.createPreparedPacket();
 
-    for (int y = 0; y < settings.HEIGHT; y++) {
-      for (int x = 0; x < settings.WIDTH; x++) {
-        int id = y * settings.WIDTH + x;
+    for (int y = 0; y < height; y++) {
+      for (int x = 0; x < width; x++) {
+        int id = y * width + x;
         int entityId = id + 10;
 
         preparedPacket
@@ -157,14 +169,15 @@ public class CachedPackets {
   }
 
   private PreparedPacket[] createCaptchaAttemptsPacket(LimboFactory limboFactory, PacketFactory packetFactory,
-                                                       String checkingTitle, String checkingSubtitle, String checkingChat, String wrongCaptcha) {
+                                                       String checkingTitle, String checkingSubtitle, String checkingChat,
+                                                       String wrongCaptcha, boolean includeHeldMap) {
     PreparedPacket[] packets = new PreparedPacket[Settings.IMP.MAIN.CAPTCHA_ATTEMPTS + 1];
 
     for (int i = 1; i < Settings.IMP.MAIN.CAPTCHA_ATTEMPTS; ++i) {
       PreparedPacket packet = limboFactory.createPreparedPacket();
       this.createChatPacket(packet, MessageFormat.format(wrongCaptcha, i));
 
-      if (!Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED) {
+      if (includeHeldMap) {
         packet
             .prepare(
                 this.createSetSlotPacketLegacy(
@@ -190,7 +203,7 @@ public class CachedPackets {
     }
 
     packets[Settings.IMP.MAIN.CAPTCHA_ATTEMPTS] = this.createCaptchaFirstAttemptPacket(limboFactory, checkingTitle, checkingSubtitle, checkingChat);
-    if (!Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED) {
+    if (includeHeldMap) {
       packets[Settings.IMP.MAIN.CAPTCHA_ATTEMPTS]
           .prepare(
               this.createSetSlotPacketLegacy(
@@ -221,6 +234,7 @@ public class CachedPackets {
     this.singleDispose(this.fallingCheckPackets);
     this.singleDispose(this.fallingCheckTitleAndChat);
     this.singleDispose(this.captchaAttemptsPacket);
+    this.singleDispose(this.interactiveCaptchaAttemptsPacket);
     this.singleDispose(this.captchaFailed);
     this.singleDispose(this.fallingCheckFailed);
     this.singleDispose(this.timesUp);
@@ -235,6 +249,7 @@ public class CachedPackets {
     this.singleDispose(this.experience);
     this.singleDispose(this.captchaNotReadyYet);
     this.singleDispose(this.framedCaptchaPackets);
+    this.singleDispose(this.interactiveCaptchaPackets);
     this.singleDispose(this.adaptiveVerificationPlatformPackets);
   }
 
@@ -481,6 +496,10 @@ public class CachedPackets {
     return this.captchaAttemptsPacket[attempt];
   }
 
+  public PreparedPacket getInteractiveCaptchaAttemptsPacket(int attempt) {
+    return this.interactiveCaptchaAttemptsPacket[attempt];
+  }
+
   public PreparedPacket getCaptchaNotReadyYet() {
     return this.captchaNotReadyYet;
   }
@@ -491,5 +510,9 @@ public class CachedPackets {
 
   public PreparedPacket getFramedCaptchaPackets() {
     return this.framedCaptchaPackets;
+  }
+
+  public PreparedPacket getInteractiveCaptchaPackets() {
+    return this.interactiveCaptchaPackets;
   }
 }

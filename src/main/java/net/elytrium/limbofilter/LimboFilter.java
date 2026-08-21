@@ -56,6 +56,7 @@ import net.elytrium.limboapi.api.protocol.packets.data.MapPalette;
 import net.elytrium.limbofilter.cache.CachedPackets;
 import net.elytrium.limbofilter.captcha.CaptchaGenerator;
 import net.elytrium.limbofilter.captcha.CaptchaHolder;
+import net.elytrium.limbofilter.captcha.advanced.CaptchaFamily;
 import net.elytrium.limbofilter.commands.LimboFilterCommand;
 import net.elytrium.limbofilter.commands.SendFilterCommand;
 import net.elytrium.limbofilter.handler.BotFilterSessionHandler;
@@ -190,9 +191,13 @@ public class LimboFilter {
         : Settings.IMP.MAIN.CAPTCHA_GENERATOR.IMAGES_COUNT;
     long captchaGeneratorRamConsumed = (long) MapData.MAP_SIZE * captchaCount;
 
-    if (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED) {
-      captchaGeneratorRamConsumed *= (long) Settings.IMP.MAIN.FRAMED_CAPTCHA.WIDTH * Settings.IMP.MAIN.FRAMED_CAPTCHA.HEIGHT;
+    long mapsPerCaptcha = Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
+        ? (long) Settings.IMP.MAIN.FRAMED_CAPTCHA.WIDTH * Settings.IMP.MAIN.FRAMED_CAPTCHA.HEIGHT : 1L;
+    if (Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED
+        && Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES.contains(CaptchaFamily.ITEM_SEQUENCE)) {
+      mapsPerCaptcha = Math.max(mapsPerCaptcha, 9L);
     }
+    captchaGeneratorRamConsumed *= mapsPerCaptcha;
 
     if (Settings.IMP.MAIN.CAPTCHA_GENERATOR.PREPARE_CAPTCHA_PACKETS) {
       captchaGeneratorRamConsumed *= ProtocolVersion.values().length / 2f;
@@ -251,9 +256,12 @@ public class LimboFilter {
     );
 
     // Make LimboAPI preload parent to captcha chunks to ensure that Sodium can properly render captcha.
-    if (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED) {
+    boolean interactiveCaptchaEnabled = Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED
+        && Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES.contains(CaptchaFamily.ITEM_SEQUENCE);
+    if (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED || interactiveCaptchaEnabled) {
       Settings.MAIN.FRAMED_CAPTCHA settings = Settings.IMP.MAIN.FRAMED_CAPTCHA;
-      for (int x = 0; x < settings.WIDTH; x++) {
+      int captchaFrameWidth = interactiveCaptchaEnabled ? Math.max(3, settings.WIDTH) : settings.WIDTH;
+      for (int x = 0; x < captchaFrameWidth; x++) {
         this.filterWorld.getChunkOrNew(settings.COORDS.X + x, settings.COORDS.Z);
       }
 

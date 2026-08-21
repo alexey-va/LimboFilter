@@ -128,7 +128,8 @@ public class Settings extends YamlConfig {
       public List<CaptchaFamily> FAMILIES = List.of(
           CaptchaFamily.TEXT,
           CaptchaFamily.ARITHMETIC,
-          CaptchaFamily.MARKED_GLYPHS
+          CaptchaFamily.MARKED_GLYPHS,
+          CaptchaFamily.ITEM_SEQUENCE
       );
     }
 

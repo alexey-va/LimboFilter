@@ -20,6 +20,7 @@ package net.elytrium.limbofilter.captcha.advanced;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.awt.image.BufferedImage;
@@ -40,8 +41,9 @@ class AdvancedCaptchaRendererTest {
       RenderedCaptcha captcha = this.renderer.render(family, new Random(1000L + family.ordinal()));
 
       assertEquals(family, captcha.family());
-      assertEquals(128, captcha.image().getWidth());
-      assertEquals(128, captcha.image().getHeight());
+      int expectedSize = family == CaptchaFamily.ITEM_SEQUENCE ? 3 * 128 : 128;
+      assertEquals(expectedSize, captcha.image().getWidth());
+      assertEquals(expectedSize, captcha.image().getHeight());
       assertFalse(captcha.answer().isBlank());
       assertEquals(captcha.answer(), captcha.answer().trim().toUpperCase());
     }
@@ -72,6 +74,23 @@ class AdvancedCaptchaRendererTest {
       assertTrue(answer.length() >= 2 && answer.length() <= 3, answer);
       assertFalse(answer.matches(".*[IO01].*"), answer);
     }
+  }
+
+  @Test
+  void itemSequenceRendersAThreeByThreeClickableMapWall() {
+    RenderedCaptcha captcha = this.renderer.render(CaptchaFamily.ITEM_SEQUENCE, new Random(42L));
+
+    assertEquals(3 * 128, captcha.image().getWidth());
+    assertEquals(3 * 128, captcha.image().getHeight());
+    assertTrue(captcha.answer().matches("CLICK:(1[0-5],){2}1[0-5]"), captcha.answer());
+  }
+
+  @Test
+  void rejectsPartialMapWallDimensions() {
+    BufferedImage partialWall = new BufferedImage(2 * 128, 128, BufferedImage.TYPE_INT_ARGB);
+
+    assertThrows(IllegalArgumentException.class,
+        () -> new RenderedCaptcha(CaptchaFamily.TEXT, "ABCD", partialWall));
   }
 
   @Test

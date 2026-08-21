@@ -31,8 +31,10 @@ public record RenderedCaptcha(CaptchaFamily family, String answer, BufferedImage
     if (answer.isEmpty()) {
       throw new IllegalArgumentException("captcha answer cannot be empty");
     }
-    if (image.getWidth() != 128 || image.getHeight() != 128) {
-      throw new IllegalArgumentException("advanced captcha must be exactly 128x128 pixels");
+    boolean singleMap = image.getWidth() == 128 && image.getHeight() == 128;
+    boolean interactiveWall = image.getWidth() == 3 * 128 && image.getHeight() == 3 * 128;
+    if (!singleMap && !interactiveWall) {
+      throw new IllegalArgumentException("advanced captcha must be one map or a 3x3 interactive wall");
     }
   }
 }

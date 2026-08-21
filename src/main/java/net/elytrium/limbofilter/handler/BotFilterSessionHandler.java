@@ -34,6 +34,7 @@ import net.elytrium.limboapi.api.protocol.PreparedPacket;
 import net.elytrium.limbofilter.LimboFilter;
 import net.elytrium.limbofilter.Settings;
 import net.elytrium.limbofilter.captcha.CaptchaHolder;
+import net.elytrium.limbofilter.captcha.advanced.InteractiveCaptchaSession;
 import net.elytrium.limbofilter.listener.TcpListener;
 import net.elytrium.limbofilter.protocol.data.EntityMetadata;
 import net.elytrium.limbofilter.protocol.data.ItemFrame;
@@ -89,6 +90,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   private LimboPlayer player;
   private Limbo server;
   private String captchaAnswer;
+  private InteractiveCaptchaSession interactiveCaptchaSession;
   private int attempts = Settings.IMP.MAIN.CAPTCHA_ATTEMPTS;
   private int nonValidPacketsSize;
   private boolean startedListening;
@@ -374,13 +376,15 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.traceAdaptivePacket("inbound", "chat",
         "length=" + message.length() + ", state=" + this.state);
     if (this.state == CheckState.CAPTCHA_POSITION || this.state == CheckState.ONLY_CAPTCHA) {
+      if (this.interactiveCaptchaSession != null) {
+        this.traceAdaptivePacket("check", "interactive-captcha-chat", "ignored=true");
+        return;
+      }
       if (this.equalsCaptchaAnswer(message) || (message.startsWith("/") && this.equalsCaptchaAnswer(message.substring(1)))) {
         this.player.writePacketAndFlush(this.plugin.getPackets().getResetSlot());
         this.finishCheck();
-      } else if (--this.attempts != 0) {
-        this.sendCaptcha();
       } else {
-        this.disconnect(this.plugin.getPackets().getCaptchaFailed(), true);
+        this.handleCaptchaFailure();
       }
     }
   }
@@ -411,12 +415,32 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
       }
     } else if (packet instanceof Interact) {
       Interact interact = (Interact) packet;
+      if (this.interactiveCaptchaSession != null
+          && (this.state == CheckState.CAPTCHA_POSITION || this.state == CheckState.ONLY_CAPTCHA)) {
+        InteractiveCaptchaSession.SelectionResult result =
+            this.interactiveCaptchaSession.select(interact.getEntityId());
+        this.traceAdaptivePacket("check", "interactive-captcha-click",
+            "entityId=" + interact.getEntityId() + ", result=" + result);
+        if (result == InteractiveCaptchaSession.SelectionResult.PENDING) {
+          this.rotateFrame(interact.getEntityId());
+        } else if (result == InteractiveCaptchaSession.SelectionResult.PASSED) {
+          this.player.writePacketAndFlush(this.plugin.getPackets().getResetSlot());
+          this.finishCheck();
+        } else if (result == InteractiveCaptchaSession.SelectionResult.FAILED) {
+          this.handleCaptchaFailure();
+        }
+        return;
+      }
       if (interact.getType() == 0 || interact.getType() == 1) {
-        int rotation = this.frameRotation.compute(interact.getEntityId(), (k, v) -> (v != null ? v : 0) + 1);
-        EntityMetadata metadata = ItemFrame.createRotationMetadata(this.version, rotation);
-        this.player.writePacketAndFlush(new SetEntityMetadata(interact.getEntityId(), metadata));
+        this.rotateFrame(interact.getEntityId());
       }
     }
+  }
+
+  private void rotateFrame(int entityId) {
+    int rotation = this.frameRotation.compute(entityId, (key, value) -> (value != null ? value : 0) + 1);
+    EntityMetadata metadata = ItemFrame.createRotationMetadata(this.version, rotation);
+    this.player.writePacketAndFlush(new SetEntityMetadata(entityId, metadata));
   }
 
   @Override
@@ -534,20 +558,35 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     }
 
     this.captchaAnswer = captchaHolder.getAnswer();
+    this.interactiveCaptchaSession = InteractiveCaptchaSession.isInteractiveAnswer(this.captchaAnswer)
+        ? InteractiveCaptchaSession.fromAnswer(this.captchaAnswer) : null;
     this.traceAdaptivePacket("outbound", "captcha",
-        "attempts=" + this.attempts + ", answerLength=" + this.captchaAnswer.length());
+        "attempts=" + this.attempts + ", answerLength=" + this.captchaAnswer.length()
+            + ", interactive=" + (this.interactiveCaptchaSession != null));
 
-    PreparedPacket framedCaptchaPacket = this.plugin.getPackets().getFramedCaptchaPackets();
+    PreparedPacket framedCaptchaPacket = this.interactiveCaptchaSession == null
+        ? this.plugin.getPackets().getFramedCaptchaPackets()
+        : this.plugin.getPackets().getInteractiveCaptchaPackets();
     if (framedCaptchaPacket != null) {
       this.player.writePacket(framedCaptchaPacket);
     }
 
-    this.player.writePacket(this.plugin.getPackets().getCaptchaAttemptsPacket(this.attempts));
+    this.player.writePacket(this.interactiveCaptchaSession == null
+        ? this.plugin.getPackets().getCaptchaAttemptsPacket(this.attempts)
+        : this.plugin.getPackets().getInteractiveCaptchaAttemptsPacket(this.attempts));
     for (Object packet : captchaHolder.getMapPacket(this.version)) {
       this.player.writePacket(packet);
     }
 
     this.player.flushPackets();
+  }
+
+  private void handleCaptchaFailure() {
+    if (--this.attempts != 0) {
+      this.sendCaptcha();
+    } else {
+      this.disconnect(this.plugin.getPackets().getCaptchaFailed(), true);
+    }
   }
 
   private void disconnect(PreparedPacket reason, boolean blocked) {

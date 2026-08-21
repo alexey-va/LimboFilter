@@ -352,7 +352,7 @@ public class CaptchaGenerator {
         this.painter.getWidth(), this.painter.getHeight());
     map.drawImage(this.painter.drawCurves(), this.painter.getWidth(), this.painter.getHeight());
 
-    CaptchaPacketData packetData = this.createPacketData(map, ThreadLocalRandom.current());
+    CaptchaPacketData packetData = this.createPacketData(map, ThreadLocalRandom.current(), true);
     cachedCaptcha.addCaptchaPacket(answer.value(), packetData.legacyPackets(), packetData.modernPackets());
   }
 
@@ -362,9 +362,18 @@ public class CaptchaGenerator {
     CaptchaFamily family = families.get(random.nextInt(families.size()));
     RenderedCaptcha rendered = this.advancedRenderer.render(family, random);
 
-    CraftMapCanvas map = this.createCraftMapCanvas();
-    map.drawImage(rendered.image(), this.painter.getWidth(), this.painter.getHeight());
-    CaptchaPacketData packetData = this.createPacketData(map, random);
+    int mapWidth = family == CaptchaFamily.ITEM_SEQUENCE
+        ? 3 : (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
+            ? Settings.IMP.MAIN.FRAMED_CAPTCHA.WIDTH : 1);
+    int mapHeight = family == CaptchaFamily.ITEM_SEQUENCE
+        ? 3 : (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
+            ? Settings.IMP.MAIN.FRAMED_CAPTCHA.HEIGHT : 1);
+    int pixelWidth = MapData.MAP_DIM_SIZE * mapWidth;
+    int pixelHeight = MapData.MAP_DIM_SIZE * mapHeight;
+    BufferedImage challengeImage = this.resizeIfNeeded(rendered.image(), pixelWidth, pixelHeight);
+    CraftMapCanvas map = new CraftMapCanvas(mapWidth, mapHeight);
+    map.drawImage(challengeImage, pixelWidth, pixelHeight);
+    CaptchaPacketData packetData = this.createPacketData(map, random, family != CaptchaFamily.ITEM_SEQUENCE);
 
     MinecraftPacket[][] packetsByProtocol = new MinecraftPacket[ProtocolVersion.values().length][];
     ProtocolVersion minVersion = this.plugin.getLimboFactory().getPrepareMinVersion();
@@ -381,12 +390,13 @@ public class CaptchaGenerator {
     return new CaptchaHolder(rendered.answer(), null, packetData.legacyPackets(), packetsByProtocol);
   }
 
-  private CaptchaPacketData createPacketData(CraftMapCanvas map, java.util.random.RandomGenerator random) {
+  private CaptchaPacketData createPacketData(CraftMapCanvas map, java.util.random.RandomGenerator random,
+                                             boolean allowRandomFrameRotation) {
     Function<MapPalette.MapVersion, MinecraftPacket[]> modernPackets = mapVersion -> {
       MinecraftPacket[] packets = new MinecraftPacket[map.getWidth() * map.getHeight()];
       for (int mapId = 0; mapId < packets.length; mapId++) {
         MapData mapData = map.getMapData(mapId, mapVersion);
-        if (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
+        if (allowRandomFrameRotation && Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
             && random.nextDouble() <= Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAME_ROTATION_CHANCE) {
           for (int rotation = 0; rotation < random.nextInt(4); ++rotation) {
             this.rotate(mapData);

@@ -56,6 +56,10 @@ public final class AdvancedCaptchaRenderer {
     Objects.requireNonNull(family, "family");
     Objects.requireNonNull(random, "random");
 
+    if (family == CaptchaFamily.ITEM_SEQUENCE) {
+      return ItemSequenceCaptchaRenderer.render(random);
+    }
+
     BufferedImage image = new BufferedImage(this.width, this.height, BufferedImage.TYPE_INT_ARGB);
     Graphics2D graphics = image.createGraphics();
     configure(graphics);
@@ -65,6 +69,7 @@ public final class AdvancedCaptchaRenderer {
       case TEXT -> this.drawTextChallenge(graphics, random);
       case ARITHMETIC -> this.drawArithmeticChallenge(graphics, random);
       case MARKED_GLYPHS -> this.drawMarkedGlyphChallenge(graphics, random);
+      case ITEM_SEQUENCE -> throw new IllegalStateException("item sequence is rendered separately");
     };
 
     this.drawInterference(graphics, random);

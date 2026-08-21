@@ -20,5 +20,6 @@ package net.elytrium.limbofilter.captcha.advanced;
 public enum CaptchaFamily {
   TEXT,
   ARITHMETIC,
-  MARKED_GLYPHS
+  MARKED_GLYPHS,
+  ITEM_SEQUENCE
 }
