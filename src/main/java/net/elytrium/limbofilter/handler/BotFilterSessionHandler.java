@@ -139,6 +139,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     } else if (this.adaptiveSession != null) {
       this.adaptiveActive = true;
       this.sendAdaptiveInstruction(this.adaptiveSession.start());
+      this.player.writePacket(this.plugin.getPackets().getAdaptiveVerificationPlatformPackets());
       if (this.state != CheckState.CAPTCHA_POSITION || Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED) {
         this.sendFallingCheckTitleAndChat();
       }

@@ -25,6 +25,8 @@ import java.util.random.RandomGenerator;
 
 public final class ChallengeProgramFactory {
 
+  private static final int PLATFORM_BLOCK_RADIUS = 4;
+  private static final double PLATFORM_HALF_WIDTH = PLATFORM_BLOCK_RADIUS + 0.5;
   private static final List<PlatformSlot> PLATFORM_SLOTS = List.of(
       new PlatformSlot(-12.0, 96.0, -12.0),
       new PlatformSlot(-12.0, 98.0, 12.0),
@@ -58,7 +60,7 @@ public final class ChallengeProgramFactory {
           ? randomImpulse(random) : MotionVector.ZERO;
       instructions.add(new ChallengeInstruction(
           phase, teleportId, new MotionVector(slot.x, startY, slot.z), velocity,
-          slot.platformTopY, 4.5));
+          slot.platformTopY, PLATFORM_HALF_WIDTH));
     }
 
     return new ChallengeProgram(instructions);
@@ -68,6 +70,26 @@ public final class ChallengeProgramFactory {
     return PLATFORM_SLOTS.stream()
         .map(slot -> new MotionVector(slot.x, slot.platformTopY, slot.z))
         .toList();
+  }
+
+  public static int platformBlockRadius() {
+    return PLATFORM_BLOCK_RADIUS;
+  }
+
+  public static Set<ChunkCoordinate> platformChunks() {
+    Set<ChunkCoordinate> chunks = new HashSet<>();
+    for (PlatformSlot slot : PLATFORM_SLOTS) {
+      int minChunkX = Math.floorDiv((int) slot.x - PLATFORM_BLOCK_RADIUS, 16);
+      int maxChunkX = Math.floorDiv((int) slot.x + PLATFORM_BLOCK_RADIUS, 16);
+      int minChunkZ = Math.floorDiv((int) slot.z - PLATFORM_BLOCK_RADIUS, 16);
+      int maxChunkZ = Math.floorDiv((int) slot.z + PLATFORM_BLOCK_RADIUS, 16);
+      for (int chunkX = minChunkX; chunkX <= maxChunkX; ++chunkX) {
+        for (int chunkZ = minChunkZ; chunkZ <= maxChunkZ; ++chunkZ) {
+          chunks.add(new ChunkCoordinate(chunkX, chunkZ));
+        }
+      }
+    }
+    return Set.copyOf(chunks);
   }
 
   private static ChallengePhase choosePhase(PhysicsProfile profile, RandomGenerator random,
@@ -102,5 +124,8 @@ public final class ChallengeProgramFactory {
   }
 
   private record PlatformSlot(double x, double platformTopY, double z) {
+  }
+
+  public record ChunkCoordinate(int x, int z) {
   }
 }

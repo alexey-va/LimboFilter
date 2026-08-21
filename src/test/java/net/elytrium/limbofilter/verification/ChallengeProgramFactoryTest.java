@@ -71,4 +71,21 @@ class ChallengeProgramFactoryTest {
 
     assertFalse(program.instructions().stream().anyMatch(i -> i.phase() == ChallengePhase.IMPULSE_COLLISION));
   }
+
+  @Test
+  void includesEveryChunkTouchedByAnAdaptivePlatform() {
+    Set<ChallengeProgramFactory.ChunkCoordinate> expected = Set.of(
+        new ChallengeProgramFactory.ChunkCoordinate(-1, -1),
+        new ChallengeProgramFactory.ChunkCoordinate(-1, 0),
+        new ChallengeProgramFactory.ChunkCoordinate(-1, 1),
+        new ChallengeProgramFactory.ChunkCoordinate(0, -1),
+        new ChallengeProgramFactory.ChunkCoordinate(0, 0),
+        new ChallengeProgramFactory.ChunkCoordinate(0, 1),
+        new ChallengeProgramFactory.ChunkCoordinate(1, -1),
+        new ChallengeProgramFactory.ChunkCoordinate(1, 0),
+        new ChallengeProgramFactory.ChunkCoordinate(1, 1)
+    );
+
+    assertEquals(expected, ChallengeProgramFactory.platformChunks());
+  }
 }

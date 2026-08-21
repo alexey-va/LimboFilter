@@ -347,7 +347,7 @@ public class LimboFilter {
         });
 
     CachedPackets cachedPackets = new CachedPackets();
-    cachedPackets.createPackets(this.limboFactory, this.packetFactory);
+    cachedPackets.createPackets(this.limboFactory, this.packetFactory, this.filterWorld);
 
     CachedPackets previousCachedPackets = this.packets;
     this.packets = cachedPackets;
@@ -404,10 +404,11 @@ public class LimboFilter {
 
   private void createAdaptiveVerificationPlatforms() {
     var platformBlock = this.limboFactory.createSimpleBlock("minecraft:stone");
+    int platformBlockRadius = ChallengeProgramFactory.platformBlockRadius();
     for (MotionVector center : ChallengeProgramFactory.platformCenters()) {
       int blockY = (int) center.y() - 1;
-      for (int x = -4; x <= 4; ++x) {
-        for (int z = -4; z <= 4; ++z) {
+      for (int x = -platformBlockRadius; x <= platformBlockRadius; ++x) {
+        for (int z = -platformBlockRadius; z <= platformBlockRadius; ++z) {
           this.filterWorld.setBlock((int) center.x() + x, blockY, (int) center.z() + z, platformBlock);
         }
       }

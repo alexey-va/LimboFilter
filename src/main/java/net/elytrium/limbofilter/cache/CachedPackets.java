@@ -33,6 +33,7 @@ import java.util.UUID;
 import net.elytrium.limboapi.api.LimboFactory;
 import net.elytrium.limboapi.api.chunk.Dimension;
 import net.elytrium.limboapi.api.chunk.VirtualChunk;
+import net.elytrium.limboapi.api.chunk.VirtualWorld;
 import net.elytrium.limboapi.api.material.Item;
 import net.elytrium.limboapi.api.material.VirtualItem;
 import net.elytrium.limboapi.api.protocol.PreparedPacket;
@@ -43,6 +44,7 @@ import net.elytrium.limbofilter.Settings;
 import net.elytrium.limbofilter.protocol.data.ItemFrame;
 import net.elytrium.limbofilter.protocol.packets.SetEntityMetadata;
 import net.elytrium.limbofilter.protocol.packets.SpawnEntity;
+import net.elytrium.limbofilter.verification.ChallengeProgramFactory;
 import net.kyori.adventure.nbt.CompoundBinaryTag;
 import net.kyori.adventure.nbt.IntBinaryTag;
 
@@ -65,13 +67,16 @@ public class CachedPackets {
   private PreparedPacket[] experience;
   private PreparedPacket captchaNotReadyYet;
   private PreparedPacket framedCaptchaPackets;
+  private PreparedPacket adaptiveVerificationPlatformPackets;
 
-  public void createPackets(LimboFactory limboFactory, PacketFactory packetFactory) {
+  public void createPackets(LimboFactory limboFactory, PacketFactory packetFactory, VirtualWorld filterWorld) {
     Settings.MAIN.STRINGS strings = Settings.IMP.MAIN.STRINGS;
 
     this.captchaAttemptsPacket = this.createCaptchaAttemptsPacket(limboFactory, packetFactory, strings.CHECKING_CAPTCHA_TITLE,
         strings.CHECKING_CAPTCHA_SUBTITLE, strings.CHECKING_CAPTCHA_CHAT, strings.CHECKING_WRONG_CAPTCHA_CHAT);
     this.fallingCheckPackets = this.createFallingCheckPackets(limboFactory, packetFactory);
+    this.adaptiveVerificationPlatformPackets =
+        this.createAdaptiveVerificationPlatformPackets(limboFactory, packetFactory, filterWorld);
     this.fallingCheckTitleAndChat =
         this.createFallingCheckTitleAndChatPackets(limboFactory, strings.CHECKING_TITLE, strings.CHECKING_SUBTITLE, strings.CHECKING_CHAT);
     this.captchaFailed = this.createDisconnectPacket(limboFactory, strings.CAPTCHA_FAILED_KICK);
@@ -230,6 +235,7 @@ public class CachedPackets {
     this.singleDispose(this.experience);
     this.singleDispose(this.captchaNotReadyYet);
     this.singleDispose(this.framedCaptchaPackets);
+    this.singleDispose(this.adaptiveVerificationPlatformPackets);
   }
 
   private void singleDispose(PreparedPacket packet) {
@@ -275,6 +281,21 @@ public class CachedPackets {
         limboFactory, packetFactory, fallingCoords.X >> 4, fallingCoords.Z >> 4, Settings.IMP.MAIN.BOTFILTER_DIMENSION
     )).prepare(this.createUpdateViewPosition(packetFactory, fallingCoords.X, fallingCoords.Z), ProtocolVersion.MINECRAFT_1_14);
 
+    return preparedPacket.build();
+  }
+
+  private PreparedPacket createAdaptiveVerificationPlatformPackets(LimboFactory limboFactory,
+                                                                    PacketFactory packetFactory,
+                                                                    VirtualWorld filterWorld) {
+    PreparedPacket preparedPacket = limboFactory.createPreparedPacket().prepare(
+        this.createUpdateViewPosition(packetFactory, 0, 0), ProtocolVersion.MINECRAFT_1_14
+    );
+    for (ChallengeProgramFactory.ChunkCoordinate coordinate : ChallengeProgramFactory.platformChunks()) {
+      VirtualChunk chunk = filterWorld.getChunkOrNew(coordinate.x() << 4, coordinate.z() << 4);
+      preparedPacket.prepare(packetFactory.createChunkDataPacket(
+          chunk.getFullChunkSnapshot(), filterWorld.getDimension()
+      ));
+    }
     return preparedPacket.build();
   }
 
@@ -443,6 +464,10 @@ public class CachedPackets {
 
   public PreparedPacket getFallingCheckPackets() {
     return this.fallingCheckPackets;
+  }
+
+  public PreparedPacket getAdaptiveVerificationPlatformPackets() {
+    return this.adaptiveVerificationPlatformPackets;
   }
 
   public PreparedPacket getCaptchaAttemptsPacket(int attempt) {
