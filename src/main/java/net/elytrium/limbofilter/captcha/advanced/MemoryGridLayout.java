@@ -30,6 +30,10 @@ public final class MemoryGridLayout {
   private static final int START_PAD_MIN_Z = -7;
   private static final int START_PAD_MAX_Z = -5;
   private static final int BLOCK_Y = 79;
+  private static final int GUIDE_FRAME_MIN_X = -1;
+  private static final int GUIDE_FRAME_MIN_Y = BLOCK_Y + 3;
+  private static final int GUIDE_FRAME_Z = GRID_MAX_BLOCK + 2;
+  private static final float START_YAW = 0.0F;
   private static final double TOP_Y = BLOCK_Y + 1.0;
   private static final double Y_TOLERANCE = 0.35;
   private static final List<String> MATERIALS = List.of(
@@ -130,6 +134,30 @@ public final class MemoryGridLayout {
 
   public static double startZ() {
     return START_PAD_MIN_Z + 0.5;
+  }
+
+  public static float startYaw() {
+    return START_YAW;
+  }
+
+  public static double guideFrameX(int mapId) {
+    requireMapId(mapId);
+    return GUIDE_FRAME_MIN_X + mapId % GRID_SIZE;
+  }
+
+  public static double guideFrameY(int mapId) {
+    requireMapId(mapId);
+    return GUIDE_FRAME_MIN_Y + mapId / GRID_SIZE;
+  }
+
+  public static double guideFrameZ() {
+    return GUIDE_FRAME_Z;
+  }
+
+  private static void requireMapId(int mapId) {
+    if (mapId < 0 || mapId >= GRID_SIZE * GRID_SIZE) {
+      throw new IllegalArgumentException("memory grid map id must be in range 0..8");
+    }
   }
 
   public record ChunkCoordinate(int x, int z) {

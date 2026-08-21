@@ -36,6 +36,7 @@ import net.elytrium.limbofilter.Settings;
 import net.elytrium.limbofilter.captcha.CaptchaHolder;
 import net.elytrium.limbofilter.captcha.advanced.InteractiveCaptchaSession;
 import net.elytrium.limbofilter.captcha.advanced.MemoryGridChallenge;
+import net.elytrium.limbofilter.captcha.advanced.MemoryGridLayout;
 import net.elytrium.limbofilter.listener.TcpListener;
 import net.elytrium.limbofilter.protocol.data.EntityMetadata;
 import net.elytrium.limbofilter.protocol.data.ItemFrame;
@@ -106,6 +107,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   private ScheduledFuture<?> adaptiveLoadingTask;
   private ScheduledFuture<?> memoryGridPreviewTask;
   private boolean memoryGridTraversalActive;
+  private boolean memoryGridGuideSpawned;
 
   public BotFilterSessionHandler(Player proxyPlayer, LimboFilter plugin) {
     this.proxyPlayer = proxyPlayer;
@@ -225,9 +227,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.adaptiveLoading = false;
     this.adaptiveActive = true;
     this.sendAdaptiveInstruction(this.adaptiveSession.start());
-    if (this.state != CheckState.CAPTCHA_POSITION || Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED) {
-      this.sendFallingCheckTitleAndChat();
-    }
+    this.sendFallingCheckTitleAndChat();
     this.traceAdaptivePacket("state", "challenge-start", "settled=true");
   }
 
@@ -654,8 +654,12 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.memoryGridTraversalActive = true;
     this.onGround = false;
     this.player.writePacket(this.plugin.getPackets().getMemoryGridPlatformPackets());
+    if (!this.memoryGridGuideSpawned) {
+      this.player.writePacket(this.plugin.getPackets().getMemoryGridGuidePackets());
+      this.memoryGridGuideSpawned = true;
+    }
     this.player.writePacket(this.plugin.getPacketFactory().createPositionRotationPacket(
-        traversal.x(), traversal.y(), traversal.z(), 0.0F, 0.0F,
+        traversal.x(), traversal.y(), traversal.z(), MemoryGridLayout.startYaw(), 0.0F,
         false, traversal.teleportId(), true));
     PreparedPacket goInstruction = this.plugin.getPackets().getMemoryGridGoInstruction();
     if (goInstruction != null) {

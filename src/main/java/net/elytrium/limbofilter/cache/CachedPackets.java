@@ -72,6 +72,7 @@ public class CachedPackets {
   private PreparedPacket interactiveCaptchaPackets;
   private PreparedPacket adaptiveVerificationPlatformPackets;
   private PreparedPacket memoryGridPlatformPackets;
+  private PreparedPacket memoryGridGuidePackets;
   private PreparedPacket memoryGridPreviewInstruction;
   private PreparedPacket memoryGridGoInstruction;
 
@@ -88,10 +89,12 @@ public class CachedPackets {
     this.adaptiveVerificationPlatformPackets =
         this.createAdaptiveVerificationPlatformPackets(limboFactory, packetFactory, filterWorld);
     this.memoryGridPlatformPackets = this.createMemoryGridPlatformPackets(limboFactory, packetFactory, filterWorld);
-    this.memoryGridPreviewInstruction = this.createFallingCheckTitleAndChatPackets(
-        limboFactory, strings.MEMORY_GRID_PREVIEW_TITLE, strings.MEMORY_GRID_PREVIEW_SUBTITLE, "");
-    this.memoryGridGoInstruction = this.createFallingCheckTitleAndChatPackets(
-        limboFactory, strings.MEMORY_GRID_GO_TITLE, strings.MEMORY_GRID_GO_SUBTITLE, "");
+    this.memoryGridGuidePackets = this.createMemoryGridGuidePackets(limboFactory);
+    this.memoryGridPreviewInstruction = this.createTitleAndChatPackets(
+        limboFactory, strings.MEMORY_GRID_PREVIEW_TITLE, strings.MEMORY_GRID_PREVIEW_SUBTITLE, "",
+        memoryGridPreviewTitleStayTicks(Settings.IMP.MAIN.ONE_TIME_CAPTCHA.MEMORY_GRID_PREVIEW_MILLIS));
+    this.memoryGridGoInstruction = this.createTitleAndChatPackets(
+        limboFactory, strings.MEMORY_GRID_GO_TITLE, strings.MEMORY_GRID_GO_SUBTITLE, "", 200);
     this.fallingCheckTitleAndChat =
         this.createFallingCheckTitleAndChatPackets(limboFactory, strings.CHECKING_TITLE, strings.CHECKING_SUBTITLE, strings.CHECKING_CHAT);
     this.captchaFailed = this.createDisconnectPacket(limboFactory, strings.CAPTCHA_FAILED_KICK);
@@ -261,6 +264,7 @@ public class CachedPackets {
     this.singleDispose(this.interactiveCaptchaPackets);
     this.singleDispose(this.adaptiveVerificationPlatformPackets);
     this.singleDispose(this.memoryGridPlatformPackets);
+    this.singleDispose(this.memoryGridGuidePackets);
     this.singleDispose(this.memoryGridPreviewInstruction);
     this.singleDispose(this.memoryGridGoInstruction);
   }
@@ -343,6 +347,35 @@ public class CachedPackets {
     return preparedPacket.build();
   }
 
+  private PreparedPacket createMemoryGridGuidePackets(LimboFactory limboFactory) {
+    PreparedPacket preparedPacket = limboFactory.createPreparedPacket();
+    for (int mapId = 0; mapId < 9; ++mapId) {
+      int entityId = 100 + mapId;
+      int guideMapId = mapId;
+      preparedPacket
+          .prepare(
+              new SpawnEntity(
+                  entityId, UUID.nameUUIDFromBytes(Ints.toByteArray(entityId)), ItemFrame::getID,
+                  MemoryGridLayout.guideFrameX(mapId), MemoryGridLayout.guideFrameY(mapId),
+                  MemoryGridLayout.guideFrameZ(), 0, 0, 0, 2, 0, 0, 0
+              ), ProtocolVersion.MINIMUM_VERSION, ProtocolVersion.MINECRAFT_1_7_6
+          )
+          .prepare(
+              new SpawnEntity(
+                  entityId, UUID.nameUUIDFromBytes(Ints.toByteArray(entityId)), ItemFrame::getID,
+                  MemoryGridLayout.guideFrameX(mapId), MemoryGridLayout.guideFrameY(mapId),
+                  MemoryGridLayout.guideFrameZ(), 0, 180, 180, 2, 0, 0, 0
+              ), ProtocolVersion.MINECRAFT_1_8
+          )
+          .prepare(
+              new SetEntityMetadata(
+                  entityId, version -> ItemFrame.createMapMetadata(limboFactory, version, guideMapId)
+              ), ProtocolVersion.MINIMUM_VERSION
+          );
+    }
+    return preparedPacket.build();
+  }
+
   static void prepareLevelChunksLoadStart(PreparedPacket preparedPacket, PacketFactory packetFactory) {
     preparedPacket.prepare(
         packetFactory.createChangeGameStatePacket(13, 0.0f), ProtocolVersion.MINECRAFT_1_20_3
@@ -351,13 +384,19 @@ public class CachedPackets {
 
   private PreparedPacket createFallingCheckTitleAndChatPackets(LimboFactory limboFactory,
                                                                String checkingTitle, String checkingSubtitle, String checkingChat) {
+    return this.createTitleAndChatPackets(limboFactory, checkingTitle, checkingSubtitle, checkingChat, 70);
+  }
+
+  private PreparedPacket createTitleAndChatPackets(LimboFactory limboFactory,
+                                                    String checkingTitle, String checkingSubtitle,
+                                                    String checkingChat, int stayTicks) {
     if ((checkingTitle.isEmpty() || checkingSubtitle.isEmpty()) && checkingChat.isEmpty()) {
       return null;
     }
 
     PreparedPacket preparedPacket = limboFactory.createPreparedPacket();
     if (!checkingTitle.isEmpty() && !checkingSubtitle.isEmpty()) {
-      this.createTitlePacket(preparedPacket, checkingTitle, checkingSubtitle);
+      this.createTitlePacket(preparedPacket, checkingTitle, checkingSubtitle, stayTicks);
     }
 
     if (!checkingChat.isEmpty()) {
@@ -435,6 +474,10 @@ public class CachedPackets {
   }
 
   public void createTitlePacket(PreparedPacket preparedPacket, String title, String subtitle) {
+    this.createTitlePacket(preparedPacket, title, subtitle, 70);
+  }
+
+  private void createTitlePacket(PreparedPacket preparedPacket, String title, String subtitle, int stayTicks) {
     preparedPacket.prepare(version -> {
       GenericTitlePacket packet = GenericTitlePacket.constructTitlePacket(GenericTitlePacket.ActionType.SET_TITLE, version);
       packet.setComponent(new ComponentHolder(version, LimboFilter.getSerializer().deserialize(title)));
@@ -453,11 +496,15 @@ public class CachedPackets {
       preparedPacket.prepare(version -> {
         GenericTitlePacket packet = GenericTitlePacket.constructTitlePacket(GenericTitlePacket.ActionType.SET_TIMES, version);
         packet.setFadeIn(10);
-        packet.setStay(70);
+        packet.setStay(stayTicks);
         packet.setFadeOut(20);
         return packet;
       }, ProtocolVersion.MINECRAFT_1_8);
     }
+  }
+
+  static int memoryGridPreviewTitleStayTicks(long previewMillis) {
+    return Math.toIntExact((previewMillis + 49L) / 50L);
   }
 
   public PreparedPacket getCaptchaFailed() {
@@ -546,6 +593,10 @@ public class CachedPackets {
 
   public PreparedPacket getMemoryGridPlatformPackets() {
     return this.memoryGridPlatformPackets;
+  }
+
+  public PreparedPacket getMemoryGridGuidePackets() {
+    return this.memoryGridGuidePackets;
   }
 
   public PreparedPacket getMemoryGridPreviewInstruction() {

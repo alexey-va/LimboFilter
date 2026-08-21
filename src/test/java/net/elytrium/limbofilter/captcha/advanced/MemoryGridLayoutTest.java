@@ -53,4 +53,17 @@ class MemoryGridLayoutTest {
     }
     assertEquals(9, materials.size());
   }
+
+  @Test
+  void placesThePersistentGuideAboveTheFarEdgeWithoutRotatingTheRoute() {
+    assertEquals(1.0, MemoryGridLayout.guideFrameX(8));
+    assertEquals(84.0, MemoryGridLayout.guideFrameY(8));
+    assertEquals(-1.0, MemoryGridLayout.guideFrameX(0));
+    assertEquals(82.0, MemoryGridLayout.guideFrameY(0));
+    assertTrue(MemoryGridLayout.guideFrameZ() > MemoryGridLayout.gridMaxBlock());
+    assertEquals(0.0F, MemoryGridLayout.startYaw());
+
+    assertEquals(0, MemoryGridLayout.tileAt(3.5, 80.0, -2.5, true));
+    assertEquals(8, MemoryGridLayout.tileAt(-2.5, 80.0, 3.5, true));
+  }
 }

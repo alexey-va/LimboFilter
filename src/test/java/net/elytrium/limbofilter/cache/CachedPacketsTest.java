@@ -61,4 +61,10 @@ class CachedPacketsTest {
     assertSame(packet, prepared.get());
     assertEquals(ProtocolVersion.MINECRAFT_1_20_3, minimumVersion.get());
   }
+
+  @Test
+  void keepsThePreviewTitleVisibleForTheWholeConfiguredPreview() {
+    assertEquals(160, CachedPackets.memoryGridPreviewTitleStayTicks(8_000));
+    assertEquals(161, CachedPackets.memoryGridPreviewTitleStayTicks(8_001));
+  }
 }
