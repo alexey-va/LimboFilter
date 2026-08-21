@@ -33,8 +33,12 @@ public final class CaptchaRefillController<T> {
   private final Supplier<T> generator;
   private final Consumer<Throwable> errorHandler;
   private final ExecutorService executor;
+  private final int generatorThreads;
   private final AtomicBoolean refillScheduled = new AtomicBoolean();
+  private final AtomicBoolean refillFailed = new AtomicBoolean();
   private final AtomicBoolean stopped = new AtomicBoolean();
+  private final AtomicInteger activeWorkers = new AtomicInteger();
+  private final Object lifecycleLock = new Object();
   private volatile Consumer<T> shutdownDisposer = ignored -> { };
 
   public CaptchaRefillController(OneTimeCaptchaPool<T> pool, int generatorThreads,
@@ -45,6 +49,7 @@ public final class CaptchaRefillController<T> {
     if (generatorThreads < 1 || generatorThreads > 2) {
       throw new IllegalArgumentException("generatorThreads must be in range 1..2");
     }
+    this.generatorThreads = generatorThreads;
     this.executor = Executors.newFixedThreadPool(generatorThreads, new CaptchaThreadFactory());
   }
 
@@ -61,12 +66,18 @@ public final class CaptchaRefillController<T> {
   }
 
   public boolean requestRefill() {
-    if (this.stopped.get() || !this.pool.needsRefill()
-        || !this.refillScheduled.compareAndSet(false, true)) {
-      return false;
+    synchronized (this.lifecycleLock) {
+      if (this.stopped.get() || !this.pool.needsRefill()
+          || !this.refillScheduled.compareAndSet(false, true)) {
+        return false;
+      }
+      this.refillFailed.set(false);
+      this.activeWorkers.set(this.generatorThreads);
+      for (int worker = 0; worker < this.generatorThreads; ++worker) {
+        this.executor.execute(this::refill);
+      }
+      return true;
     }
-    this.executor.execute(this::refill);
-    return true;
   }
 
   public int size() {
@@ -78,15 +89,16 @@ public final class CaptchaRefillController<T> {
   }
 
   public void shutdown(Consumer<T> disposer) {
-    this.shutdownDisposer = Objects.requireNonNull(disposer, "disposer");
-    if (this.stopped.compareAndSet(false, true)) {
-      this.pool.close(this.shutdownDisposer);
-      this.executor.shutdownNow();
+    synchronized (this.lifecycleLock) {
+      this.shutdownDisposer = Objects.requireNonNull(disposer, "disposer");
+      if (this.stopped.compareAndSet(false, true)) {
+        this.pool.close(this.shutdownDisposer);
+        this.executor.shutdownNow();
+      }
     }
   }
 
   private void refill() {
-    boolean failed = false;
     try {
       while (!this.stopped.get() && this.pool.remainingCapacity() > 0) {
         T challenge = this.generator.get();
@@ -101,12 +113,15 @@ public final class CaptchaRefillController<T> {
         }
       }
     } catch (Throwable failure) {
-      failed = true;
-      this.errorHandler.accept(failure);
+      if (this.refillFailed.compareAndSet(false, true)) {
+        this.errorHandler.accept(failure);
+      }
     } finally {
-      this.refillScheduled.set(false);
-      if (!failed && !this.stopped.get() && this.pool.needsRefill()) {
-        this.requestRefill();
+      if (this.activeWorkers.decrementAndGet() == 0) {
+        this.refillScheduled.set(false);
+        if (!this.refillFailed.get() && !this.stopped.get() && this.pool.needsRefill()) {
+          this.requestRefill();
+        }
       }
     }
   }

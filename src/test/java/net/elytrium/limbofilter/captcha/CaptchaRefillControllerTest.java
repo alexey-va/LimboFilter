@@ -124,4 +124,32 @@ class CaptchaRefillControllerTest {
     assertEquals(99, disposedValue.get());
     assertEquals(0, controller.size());
   }
+
+  @Test
+  void usesBothConfiguredGeneratorThreads() throws InterruptedException {
+    OneTimeCaptchaPool<Integer> pool = new OneTimeCaptchaPool<>(4, 1);
+    CountDownLatch workersEntered = new CountDownLatch(2);
+    CountDownLatch releaseWorkers = new CountDownLatch(1);
+    AtomicInteger sequence = new AtomicInteger();
+    CaptchaRefillController<Integer> controller = new CaptchaRefillController<>(
+        pool, 2, () -> {
+          workersEntered.countDown();
+          try {
+            releaseWorkers.await(5, TimeUnit.SECONDS);
+          } catch (InterruptedException failure) {
+            Thread.currentThread().interrupt();
+          }
+          return sequence.incrementAndGet();
+        }, failure -> {
+          throw new AssertionError(failure);
+        });
+
+    try {
+      controller.start();
+      assertTrue(workersEntered.await(1, TimeUnit.SECONDS));
+    } finally {
+      releaseWorkers.countDown();
+      controller.shutdown(ignored -> { });
+    }
+  }
 }
