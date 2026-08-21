@@ -48,6 +48,13 @@ public final class AdaptiveModeSelector {
     return !geyserConnection && containsUsername(fullTestUsernames, username);
   }
 
+  public static boolean shouldTracePackets(boolean enabled, List<String> debugUsernames,
+                                           String username) {
+    Objects.requireNonNull(debugUsernames, "debugUsernames");
+    Objects.requireNonNull(username, "username");
+    return enabled && containsUsername(debugUsernames, username);
+  }
+
   private static boolean containsUsername(List<String> usernames, String username) {
     return usernames.stream()
         .filter(Objects::nonNull)

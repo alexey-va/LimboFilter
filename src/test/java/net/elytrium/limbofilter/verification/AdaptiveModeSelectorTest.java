@@ -81,4 +81,16 @@ class AdaptiveModeSelectorTest {
     assertFalse(AdaptiveModeSelector.shouldForceFilter(
         List.of("GrocerMC"), "AnotherPlayer", false));
   }
+
+  @Test
+  void enablesPacketTraceOnlyForAnExplicitAllowlistedUsername() {
+    assertTrue(AdaptiveModeSelector.shouldTracePackets(
+        true, List.of("  GrocerMC  "), "grocermc"));
+    assertFalse(AdaptiveModeSelector.shouldTracePackets(
+        false, List.of("GrocerMC"), "GrocerMC"));
+    assertFalse(AdaptiveModeSelector.shouldTracePackets(
+        true, List.of("GrocerMC"), "AnotherPlayer"));
+    assertFalse(AdaptiveModeSelector.shouldTracePackets(
+        true, List.of(), "GrocerMC"));
+  }
 }

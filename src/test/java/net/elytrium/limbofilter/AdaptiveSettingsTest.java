@@ -66,6 +66,7 @@ class AdaptiveSettingsTest {
         adaptive, new Settings.MAIN.ONE_TIME_CAPTCHA(), false));
     assertEquals(List.of(), adaptive.TEST_USERNAMES);
     assertEquals(List.of(), adaptive.FULL_TEST_USERNAMES);
+    assertEquals(List.of(), adaptive.PACKET_DEBUG_USERNAMES);
   }
 
   @Test
@@ -88,6 +89,10 @@ class AdaptiveSettingsTest {
 
     adaptive = new Settings.MAIN.ADAPTIVE_VERIFICATION();
     adaptive.POSITION_TOLERANCE = Double.NaN;
+    assertInvalid(adaptive, new Settings.MAIN.ONE_TIME_CAPTCHA(), false);
+
+    adaptive = new Settings.MAIN.ADAPTIVE_VERIFICATION();
+    adaptive.PACKET_DEBUG_MAX_EVENTS = 0;
     assertInvalid(adaptive, new Settings.MAIN.ONE_TIME_CAPTCHA(), false);
   }
 

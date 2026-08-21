@@ -100,6 +100,13 @@ public class Settings extends YamlConfig {
           "Matching is case-insensitive. Leave empty to disable the full-pipeline test override."
       })
       public List<String> FULL_TEST_USERNAMES = List.of();
+      @Comment({
+          "Log a bounded packet/check trace only for packet-debug-usernames.",
+          "Keep disabled outside short diagnostic sessions."
+      })
+      public boolean PACKET_DEBUG = false;
+      public List<String> PACKET_DEBUG_USERNAMES = List.of();
+      public int PACKET_DEBUG_MAX_EVENTS = 256;
       public int MAX_PACKET_GAP_TICKS = 4;
       public int MAX_SAMPLES_PER_PHASE = 160;
       public long MAX_SESSION_MILLIS = 12000;
@@ -510,6 +517,11 @@ public class Settings extends YamlConfig {
     Objects.requireNonNull(adaptive.MODE, "adaptive.mode");
     Objects.requireNonNull(adaptive.TEST_USERNAMES, "adaptive.test-usernames");
     Objects.requireNonNull(adaptive.FULL_TEST_USERNAMES, "adaptive.full-test-usernames");
+    Objects.requireNonNull(adaptive.PACKET_DEBUG_USERNAMES, "adaptive.packet-debug-usernames");
+
+    if (adaptive.PACKET_DEBUG_MAX_EVENTS < 1 || adaptive.PACKET_DEBUG_MAX_EVENTS > 10_000) {
+      throw new IllegalArgumentException("adaptive packet-debug-max-events must be in range 1..10000");
+    }
 
     if (adaptive.MAX_PACKET_GAP_TICKS < 1 || adaptive.MAX_PACKET_GAP_TICKS > 20) {
       throw new IllegalArgumentException("adaptive max-packet-gap-ticks must be in range 1..20");

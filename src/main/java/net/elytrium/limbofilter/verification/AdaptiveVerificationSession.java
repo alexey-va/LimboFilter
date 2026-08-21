@@ -38,6 +38,7 @@ public final class AdaptiveVerificationSession {
   private int initialPositionEchoes;
   private int interPhaseMovementTail;
   private MotionSample previous;
+  private TrajectoryMatch lastMatch;
   private VerificationResult result = VerificationResult.PENDING;
 
   public AdaptiveVerificationSession(ChallengeProgram program, PhysicsProfile profile,
@@ -92,6 +93,7 @@ public final class AdaptiveVerificationSession {
     this.initialPositionEchoes = 0;
     this.interPhaseMovementTail = 0;
     this.previous = new MotionSample(0, instruction.start(), instruction.initialVelocity(), false);
+    this.lastMatch = null;
     this.result = VerificationResult.PENDING;
     return this.result;
   }
@@ -135,6 +137,7 @@ public final class AdaptiveVerificationSession {
     }
     TrajectoryMatch match = TrajectoryEnvelope.match(
         this.previous, position, onGround, this.profile, instruction.platformTopY());
+    this.lastMatch = match;
     if (!match.matched()) {
       return this.fail(onGround ? VerificationResult.FAIL_COLLISION : VerificationResult.FAIL_TRAJECTORY);
     }
@@ -176,6 +179,7 @@ public final class AdaptiveVerificationSession {
         this.awaitingInitialMotion,
         this.initialPositionEchoes,
         this.previous,
+        this.lastMatch,
         this.currentInstruction(),
         this.result
     );
@@ -204,6 +208,7 @@ public final class AdaptiveVerificationSession {
   public record Diagnostics(int phaseNumber, int totalPhases, int samples,
                             boolean teleportConfirmed, boolean awaitingInitialMotion,
                             int initialPositionEchoes, MotionSample previous,
+                            TrajectoryMatch lastMatch,
                             ChallengeInstruction instruction, VerificationResult result) {
   }
 }

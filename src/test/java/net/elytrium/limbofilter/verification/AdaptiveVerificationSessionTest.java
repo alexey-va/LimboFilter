@@ -209,6 +209,7 @@ class AdaptiveVerificationSessionTest {
     assertEquals(1, diagnostics.samples());
     assertEquals(instruction, diagnostics.instruction());
     assertEquals(new MotionSample(0, instruction.start(), MotionVector.ZERO, false), diagnostics.previous());
+    assertEquals(false, diagnostics.lastMatch().matched());
     assertEquals(VerificationResult.FAIL_TRAJECTORY, diagnostics.result());
   }
 

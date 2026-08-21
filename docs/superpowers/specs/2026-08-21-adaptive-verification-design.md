@@ -153,6 +153,9 @@ New settings live under two top-level sections in LimboFilter's generated YAML:
 adaptive-verification:
   mode: SHADOW
   test-usernames: []
+  packet-debug: false
+  packet-debug-usernames: []
+  packet-debug-max-events: 256
   max-packet-gap-ticks: 4
   max-samples-per-phase: 160
   max-session-millis: 12000
@@ -190,8 +193,11 @@ Adaptive verification produces one terminal result:
 - `UNSUPPORTED`.
 
 Debug logging contains the player, protocol, mode, and terminal result, but
-never the random seed, CAPTCHA answer, or complete expected trajectory. Normal
-operation does not log individual movement packets.
+never the random seed, CAPTCHA answer, or complete expected trajectory. The
+optional packet trace is additionally gated by a case-insensitive username
+allowlist and a per-session event budget. It records callback metadata,
+transitions, and matcher decisions without chat contents or CAPTCHA answers.
+Normal operation does not log individual movement packets.
 
 If the CAPTCHA worker throws, the error is logged once per refill cycle and the
 last healthy pool remains usable. Reload swaps in a fully initialized provider

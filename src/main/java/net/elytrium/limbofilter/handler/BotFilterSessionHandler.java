@@ -41,8 +41,10 @@ import net.elytrium.limbofilter.protocol.packets.AdaptivePosition;
 import net.elytrium.limbofilter.protocol.packets.Interact;
 import net.elytrium.limbofilter.protocol.packets.SetEntityMetadata;
 import net.elytrium.limbofilter.stats.Statistics;
+import net.elytrium.limbofilter.verification.AdaptiveLoadingGate;
 import net.elytrium.limbofilter.verification.AdaptiveMode;
 import net.elytrium.limbofilter.verification.AdaptiveModeSelector;
+import net.elytrium.limbofilter.verification.AdaptivePacketTraceBudget;
 import net.elytrium.limbofilter.verification.AdaptiveVerificationSession;
 import net.elytrium.limbofilter.verification.ChallengeInstruction;
 import net.elytrium.limbofilter.verification.ChallengeProgram;
@@ -68,6 +70,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   private final AdaptiveMode adaptiveMode;
   private final AdaptiveVerificationSession adaptiveSession;
   private final boolean adaptiveDiagnosticsEnabled;
+  private final AdaptivePacketTraceBudget adaptivePacketTraceBudget;
 
   private double posX;
   private double posY;
@@ -92,6 +95,9 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   private boolean checkedBySettings;
   private boolean checkedByBrand;
   private boolean adaptiveActive;
+  private boolean adaptiveLoading;
+  private boolean adaptiveChallengeStarted;
+  private ScheduledFuture<?> adaptiveLoadingTask;
 
   public BotFilterSessionHandler(Player proxyPlayer, LimboFilter plugin) {
     this.proxyPlayer = proxyPlayer;
@@ -126,6 +132,9 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
         adaptive.FULL_TEST_USERNAMES,
         this.proxyPlayer.getUsername());
     this.adaptiveDiagnosticsEnabled = adaptivePolicy.diagnosticsEnabled();
+    this.adaptivePacketTraceBudget = AdaptiveModeSelector.shouldTracePackets(
+        adaptive.PACKET_DEBUG, adaptive.PACKET_DEBUG_USERNAMES, this.proxyPlayer.getUsername())
+        ? new AdaptivePacketTraceBudget(adaptive.PACKET_DEBUG_MAX_EVENTS) : null;
     if (!geyserConnection && adaptivePolicy.forceCaptcha()) {
       this.state = CheckState.CAPTCHA_POSITION;
     }
@@ -145,15 +154,19 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.player = player;
 
     this.joinTime = System.currentTimeMillis();
+    this.traceAdaptivePacket("state", "spawn",
+        "mode=" + this.adaptiveMode + ", checkState=" + this.state);
     if (this.state == CheckState.ONLY_CAPTCHA) {
       this.changeStateToCaptcha();
     } else if (this.adaptiveSession != null) {
-      this.adaptiveActive = true;
-      this.sendAdaptiveInstruction(this.adaptiveSession.start());
-      this.player.writePacket(this.plugin.getPackets().getAdaptiveVerificationPlatformPackets());
-      if (this.state != CheckState.CAPTCHA_POSITION || Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED) {
-        this.sendFallingCheckTitleAndChat();
+      if (AdaptiveLoadingGate.required(this.version)) {
+        this.adaptiveLoading = true;
+        this.sendAdaptiveLoadingAnchor();
+      } else {
+        this.beginAdaptiveChallenge();
       }
+      this.player.writePacket(this.plugin.getPackets().getAdaptiveVerificationPlatformPackets());
+      this.traceAdaptivePacket("outbound", "adaptive-platform", "chunks=preloaded");
     } else if (this.state == CheckState.ONLY_POSITION || this.state == CheckState.CAPTCHA_ON_POSITION_FAILED) {
       this.sendFallingCheckPackets();
       this.sendFallingCheckTitleAndChat();
@@ -179,8 +192,44 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.player.writePacket(this.plugin.getPackets().getFallingCheckTitleAndChat());
   }
 
+  private void sendAdaptiveLoadingAnchor() {
+    Settings.MAIN.COORDS coords = Settings.IMP.MAIN.COORDS;
+    MotionVector position = AdaptiveLoadingGate.POSITION;
+    if (this.version.noLessThan(ProtocolVersion.MINECRAFT_1_21_2)) {
+      this.player.writePacket(new AdaptivePosition(
+          AdaptiveLoadingGate.TELEPORT_ID, position, MotionVector.ZERO,
+          (float) coords.FALLING_CHECK_YAW, (float) coords.FALLING_CHECK_PITCH));
+    } else {
+      this.player.writePacket(this.plugin.getPacketFactory().createPositionRotationPacket(
+          position.x(), position.y(), position.z(),
+          (float) coords.FALLING_CHECK_YAW, (float) coords.FALLING_CHECK_PITCH,
+          false, AdaptiveLoadingGate.TELEPORT_ID, true));
+    }
+    this.traceAdaptivePacket("outbound", "loading-anchor",
+        "teleportId=" + AdaptiveLoadingGate.TELEPORT_ID + ", position=" + position);
+  }
+
+  private void beginAdaptiveChallenge() {
+    if (this.adaptiveChallengeStarted) {
+      return;
+    }
+    this.adaptiveChallengeStarted = true;
+    this.adaptiveLoading = false;
+    this.adaptiveActive = true;
+    this.sendAdaptiveInstruction(this.adaptiveSession.start());
+    if (this.state != CheckState.CAPTCHA_POSITION || Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED) {
+      this.sendFallingCheckTitleAndChat();
+    }
+    this.traceAdaptivePacket("state", "challenge-start", "settled=true");
+  }
+
   @Override
   public void onMove(double x, double y, double z) {
+    this.traceAdaptivePacket("inbound", "move",
+        "position=(" + x + ", " + y + ", " + z + "), onGround=" + this.onGround);
+    if (this.adaptiveLoading) {
+      return;
+    }
     if (this.adaptiveActive) {
       VerificationResult result = this.adaptiveSession.move(new MotionVector(x, y, z), this.onGround);
       this.logAdaptiveResult(result, "move=(" + x + ", " + y + ", " + z + "), onGround=" + this.onGround);
@@ -250,6 +299,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   }
 
   private void fallingCheckFailed(String reason) {
+    this.traceAdaptivePacket("check", "falling-check-failed", "reason=" + reason);
     if (Settings.IMP.MAIN.FALLING_CHECK_DEBUG) {
       LimboFilter.getLogger().info(reason);
       this.logPosition();
@@ -285,10 +335,25 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   @Override
   public void onGround(boolean onGround) {
     this.onGround = onGround;
+    this.traceAdaptivePacket("inbound", "on-ground", "value=" + onGround);
   }
 
   @Override
   public void onTeleport(int teleportId) {
+    this.traceAdaptivePacket("inbound", "teleport-confirm", "teleportId=" + teleportId);
+    if (this.adaptiveLoading) {
+      if (teleportId == AdaptiveLoadingGate.TELEPORT_ID && this.adaptiveLoadingTask == null) {
+        this.traceAdaptivePacket("state", "loading-anchor-confirmed",
+            "settleMillis=" + AdaptiveLoadingGate.SETTLE_MILLIS);
+        this.adaptiveLoadingTask = this.player.getScheduledExecutor().schedule(() -> {
+          this.beginAdaptiveChallenge();
+          this.player.flushPackets();
+        }, AdaptiveLoadingGate.SETTLE_MILLIS, TimeUnit.MILLISECONDS);
+      } else if (teleportId != AdaptiveLoadingGate.TELEPORT_ID) {
+        this.traceAdaptivePacket("check", "loading-anchor-confirm", "ignoredUnexpectedId=" + teleportId);
+      }
+      return;
+    }
     if (this.adaptiveActive) {
       VerificationResult result = this.adaptiveSession.confirmTeleport(teleportId);
       this.logAdaptiveResult(result, "teleport-confirm=" + teleportId);
@@ -306,6 +371,8 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
 
   @Override
   public void onChat(String message) {
+    this.traceAdaptivePacket("inbound", "chat",
+        "length=" + message.length() + ", state=" + this.state);
     if (this.state == CheckState.CAPTCHA_POSITION || this.state == CheckState.ONLY_CAPTCHA) {
       if (this.equalsCaptchaAnswer(message) || (message.startsWith("/") && this.equalsCaptchaAnswer(message.substring(1)))) {
         this.player.writePacketAndFlush(this.plugin.getPackets().getResetSlot());
@@ -328,6 +395,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
 
   @Override
   public void onGeneric(Object packet) {
+    this.traceAdaptivePacket("inbound", "generic", "type=" + packet.getClass().getSimpleName());
     if (packet instanceof PluginMessagePacket) {
       PluginMessagePacket pluginMessage = (PluginMessagePacket) packet;
       if (PluginMessageUtil.isMcBrand(pluginMessage) && !this.checkedByBrand) {
@@ -353,7 +421,13 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
 
   @Override
   public void onDisconnect() {
-    this.filterMainTask.cancel(true);
+    this.traceAdaptivePacket("state", "disconnect", "checkState=" + this.state);
+    if (this.filterMainTask != null) {
+      this.filterMainTask.cancel(true);
+    }
+    if (this.adaptiveLoadingTask != null) {
+      this.adaptiveLoadingTask.cancel(true);
+    }
 
     TcpListener tcpListener = this.plugin.getTcpListener();
     if (tcpListener != null) {
@@ -379,13 +453,17 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   }
 
   private void completeClientChecks() {
+    this.traceAdaptivePacket("check", "client-checks",
+        "settings=" + this.checkedBySettings + ", brand=" + this.checkedByBrand);
 
     if (Settings.IMP.MAIN.CHECK_CLIENT_SETTINGS && !this.checkedBySettings) {
+      this.traceAdaptivePacket("check", "client-settings", "result=FAIL");
       this.disconnect(this.plugin.getPackets().getKickClientCheckSettings(), true);
       return;
     }
 
     if (Settings.IMP.MAIN.CHECK_CLIENT_BRAND && !this.checkedByBrand) {
+      this.traceAdaptivePacket("check", "client-brand", "result=FAIL");
       this.disconnect(this.plugin.getPackets().getKickClientCheckBrand(), true);
       return;
     }
@@ -395,6 +473,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     }
 
     this.state = CheckState.SUCCESSFUL;
+    this.traceAdaptivePacket("state", "successful", "cached=true");
     this.plugin.cacheFilterUser(this.proxyPlayer);
 
     if (this.plugin.checkCpsLimit(Settings.IMP.MAIN.FILTER_AUTO_TOGGLE.NEED_TO_RECONNECT)) {
@@ -428,6 +507,8 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
 
   private void changeStateToCaptcha() {
     this.adaptiveActive = false;
+    this.adaptiveLoading = false;
+    this.traceAdaptivePacket("state", "captcha", "transition=true");
     if (this.state != CheckState.ONLY_CAPTCHA && this.version.noLessThan(ProtocolVersion.MINECRAFT_1_21_2)) {
       this.player.writePacket(this.plugin.getPackets().getFallingCheckChunkUnload());
     }
@@ -453,6 +534,8 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     }
 
     this.captchaAnswer = captchaHolder.getAnswer();
+    this.traceAdaptivePacket("outbound", "captcha",
+        "attempts=" + this.attempts + ", answerLength=" + this.captchaAnswer.length());
 
     PreparedPacket framedCaptchaPacket = this.plugin.getPackets().getFramedCaptchaPackets();
     if (framedCaptchaPacket != null) {
@@ -513,6 +596,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
         this.handleAdaptiveResult(this.adaptiveSession.confirmTeleport(instruction.teleportId()));
       }
     }
+    this.traceAdaptivePacket("outbound", "challenge-instruction", instruction.toString());
   }
 
   private void handleAdaptiveResult(VerificationResult result) {
@@ -520,12 +604,15 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
       return;
     }
     if (result == VerificationResult.PHASE_PASSED) {
+      this.traceAdaptivePacket("state", "phase-transition",
+          "next=" + this.adaptiveSession.currentInstruction());
       this.sendAdaptiveInstruction(this.adaptiveSession.currentInstruction());
       this.player.flushPackets();
       return;
     }
 
     this.adaptiveActive = false;
+    this.traceAdaptivePacket("state", "adaptive-terminal", "result=" + result);
     if (this.adaptiveMode == AdaptiveMode.SHADOW) {
       this.fallbackToLegacyFallingCheck();
     } else if (result == VerificationResult.PASS) {
@@ -540,6 +627,15 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   }
 
   private void logAdaptiveResult(VerificationResult result, String event) {
+    if (this.adaptivePacketTraceBudget != null) {
+      AdaptiveVerificationSession.Diagnostics diagnostics = this.adaptiveSession.diagnostics();
+      this.traceAdaptivePacket("check", "adaptive-result",
+          "result=" + result + ", event=" + event + ", phase=" + diagnostics.phaseNumber()
+              + "/" + diagnostics.totalPhases() + ", samples=" + diagnostics.samples()
+              + ", teleportConfirmed=" + diagnostics.teleportConfirmed()
+              + ", awaitingInitialMotion=" + diagnostics.awaitingInitialMotion()
+              + ", previous=" + diagnostics.previous() + ", match=" + diagnostics.lastMatch());
+    }
     if ((!Settings.IMP.MAIN.FALLING_CHECK_DEBUG && !this.adaptiveDiagnosticsEnabled)
         || result == VerificationResult.PENDING) {
       return;
@@ -553,6 +649,28 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
         diagnostics.phaseNumber(), diagnostics.totalPhases(), diagnostics.samples(),
         diagnostics.teleportConfirmed(), diagnostics.awaitingInitialMotion(), diagnostics.initialPositionEchoes(),
         diagnostics.previous(), diagnostics.instruction());
+  }
+
+  private void traceAdaptivePacket(String direction, String packet, String details) {
+    if (this.adaptivePacketTraceBudget == null) {
+      return;
+    }
+
+    AdaptivePacketTraceBudget.Decision decision = this.adaptivePacketTraceBudget.next();
+    if (decision == AdaptivePacketTraceBudget.Decision.SKIP) {
+      return;
+    }
+    if (decision == AdaptivePacketTraceBudget.Decision.TRUNCATED) {
+      LimboFilter.getLogger().info(
+          "{} adaptive packet-debug: trace truncated after configured event budget",
+          this.proxyPlayer);
+      return;
+    }
+
+    LimboFilter.getLogger().info(
+        "{} adaptive packet-debug: direction={}, packet={}, details={}, protocol={}, state={}, loading={}, active={}",
+        this.proxyPlayer, direction, packet, details, this.version, this.state,
+        this.adaptiveLoading, this.adaptiveActive);
   }
 
   private void fallbackToLegacyFallingCheck() {

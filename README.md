@@ -17,7 +17,7 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.8` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.13` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
@@ -46,6 +46,10 @@ adaptive-verification:
   test-usernames: [YourTestPlayer]
   # These Java usernames use ENFORCE and must then solve a CAPTCHA.
   full-test-usernames: [YourFullPipelineTestPlayer]
+  # Bounded packet/check tracing for explicitly allowlisted test players.
+  packet-debug: false
+  packet-debug-usernames: []
+  packet-debug-max-events: 256
   max-packet-gap-ticks: 4
   max-samples-per-phase: 160
   max-session-millis: 12000
@@ -74,12 +78,19 @@ would normally omit CAPTCHA. The full-pipeline override also bypasses the
 verified-player cache and CPS/online-mode bypasses so every Java connection can
 be tested repeatedly. Geyser connections retain their compatibility path.
 
+`packet-debug` records Limbo callback packets, state transitions, and adaptive
+matcher decisions only for `packet-debug-usernames`. The per-session event
+budget prevents unbounded log growth. Chat contents and CAPTCHA answers are
+never logged; only their lengths and non-secret state are recorded.
+
 Captcha family names are normalized after YAML loading so the generated string
 list is validated and converted before the captcha pool consumes it.
 
 Adaptive sessions preload the real collision-platform chunks before waiting
-for movement, so vanilla clients start physics instead of stalling on an empty
-world. A bounded startup window accepts the duplicate initial-position echoes
+for movement. Minecraft 1.20.3+ first receives a temporary out-of-height anchor
+so the vanilla `WaitingForPlayerChunk` tracker can close without its 30-second
+fallback, then starts the real randomized challenge. A bounded startup window
+accepts the duplicate initial-position echoes
 that vanilla sends before its first physics tick, without allowing a client to
 remain frozen past the configured packet-gap bound. The first impulse tick
 applies the server-provided delta before gravity and drag, matching the vanilla
