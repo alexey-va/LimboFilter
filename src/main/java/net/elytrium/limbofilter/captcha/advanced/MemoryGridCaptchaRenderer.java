@@ -58,8 +58,8 @@ final class MemoryGridCaptchaRenderer {
     graphics.fillRect(0, 0, canvasSize, canvasSize);
 
     for (int tile = 0; tile < GRID_SIZE * GRID_SIZE; ++tile) {
-      int row = tile / GRID_SIZE;
-      drawTile(graphics, displayColumn(tile) * MAP_SIZE, row * MAP_SIZE, tile, orderOf(path, tile));
+      drawTile(graphics, displayColumn(tile) * MAP_SIZE, displayRow(tile) * MAP_SIZE,
+          tile, orderOf(path, tile));
     }
     drawPath(graphics, path);
     graphics.dispose();
@@ -154,7 +154,11 @@ final class MemoryGridCaptchaRenderer {
   }
 
   private static int centerY(int tile) {
-    return (tile / GRID_SIZE) * MAP_SIZE + MAP_SIZE / 2;
+    return displayRow(tile) * MAP_SIZE + MAP_SIZE / 2;
+  }
+
+  private static int displayRow(int tile) {
+    return GRID_SIZE - 1 - tile / GRID_SIZE;
   }
 
   private static void configure(Graphics2D graphics) {

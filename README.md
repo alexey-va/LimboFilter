@@ -17,7 +17,7 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.19` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.20` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
