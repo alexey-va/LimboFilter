@@ -17,7 +17,7 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.6` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.7` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
@@ -44,6 +44,8 @@ adaptive-verification:
   mode: SHADOW
   # These Java usernames use ENFORCE while everyone else keeps mode above.
   test-usernames: [YourTestPlayer]
+  # These Java usernames use ENFORCE and must then solve a CAPTCHA.
+  full-test-usernames: [YourFullPipelineTestPlayer]
   max-packet-gap-ticks: 4
   max-samples-per-phase: 160
   max-session-millis: 12000
@@ -64,6 +66,12 @@ one-time-captcha:
 with global `mode: OFF` or `mode: SHADOW`, only the listed Java usernames are
 forced through `ENFORCE`. An empty list disables the override. Geyser and
 `ONLY_CAPTCHA` connections still stay on their compatibility paths.
+
+`full-test-usernames` is also case-insensitive and is intended for an isolated
+end-to-end pilot. A listed Java username is forced through adaptive `ENFORCE`
+and then `CAPTCHA_POSITION`, including when the current CPS-selected Java check
+would normally omit CAPTCHA. Geyser connections retain their compatibility
+path.
 
 Captcha family names are normalized after YAML loading so the generated string
 list is validated and converted before the captcha pool consumes it.

@@ -95,6 +95,11 @@ public class Settings extends YamlConfig {
           "Matching is case-insensitive. Leave empty to disable per-user testing."
       })
       public List<String> TEST_USERNAMES = List.of();
+      @Comment({
+          "Java usernames listed here always use ENFORCE followed by CAPTCHA_POSITION.",
+          "Matching is case-insensitive. Leave empty to disable the full-pipeline test override."
+      })
+      public List<String> FULL_TEST_USERNAMES = List.of();
       public int MAX_PACKET_GAP_TICKS = 4;
       public int MAX_SAMPLES_PER_PHASE = 160;
       public long MAX_SESSION_MILLIS = 12000;
@@ -504,6 +509,7 @@ public class Settings extends YamlConfig {
     Objects.requireNonNull(captcha, "captcha");
     Objects.requireNonNull(adaptive.MODE, "adaptive.mode");
     Objects.requireNonNull(adaptive.TEST_USERNAMES, "adaptive.test-usernames");
+    Objects.requireNonNull(adaptive.FULL_TEST_USERNAMES, "adaptive.full-test-usernames");
 
     if (adaptive.MAX_PACKET_GAP_TICKS < 1 || adaptive.MAX_PACKET_GAP_TICKS > 20) {
       throw new IllegalArgumentException("adaptive max-packet-gap-ticks must be in range 1..20");

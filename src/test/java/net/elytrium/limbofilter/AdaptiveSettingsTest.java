@@ -65,6 +65,7 @@ class AdaptiveSettingsTest {
     assertDoesNotThrow(() -> Settings.validateAdvancedSettings(
         adaptive, new Settings.MAIN.ONE_TIME_CAPTCHA(), false));
     assertEquals(List.of(), adaptive.TEST_USERNAMES);
+    assertEquals(List.of(), adaptive.FULL_TEST_USERNAMES);
   }
 
   @Test

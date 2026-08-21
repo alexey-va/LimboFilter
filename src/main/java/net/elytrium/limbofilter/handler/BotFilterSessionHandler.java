@@ -109,7 +109,8 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.posY = this.validY;
     this.posZ = this.validZ;
 
-    if (proxyPlayer.getRemoteAddress().getPort() == 0) {
+    boolean geyserConnection = proxyPlayer.getRemoteAddress().getPort() == 0;
+    if (geyserConnection) {
       this.state = plugin.checkCpsLimit(Settings.IMP.MAIN.FILTER_AUTO_TOGGLE.CHECK_STATE_TOGGLE)
           ? Settings.IMP.MAIN.GEYSER_CHECK_STATE : Settings.IMP.MAIN.GEYSER_CHECK_STATE_NON_TOGGLED;
     } else {
@@ -117,13 +118,21 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
           ? Settings.IMP.MAIN.CHECK_STATE : Settings.IMP.MAIN.CHECK_STATE_NON_TOGGLED;
     }
 
-    if (proxyPlayer.getRemoteAddress().getPort() == 0 || this.state == CheckState.ONLY_CAPTCHA) {
+    Settings.MAIN.ADAPTIVE_VERIFICATION adaptive = Settings.IMP.MAIN.ADAPTIVE_VERIFICATION;
+    AdaptiveModeSelector.Policy adaptivePolicy = AdaptiveModeSelector.resolvePolicy(
+        adaptive.MODE,
+        adaptive.TEST_USERNAMES,
+        adaptive.FULL_TEST_USERNAMES,
+        this.proxyPlayer.getUsername());
+    if (!geyserConnection && adaptivePolicy.forceCaptcha()) {
+      this.state = CheckState.CAPTCHA_POSITION;
+    }
+
+    if (geyserConnection || this.state == CheckState.ONLY_CAPTCHA) {
       this.adaptiveMode = AdaptiveMode.OFF;
       this.adaptiveSession = null;
     } else {
-      Settings.MAIN.ADAPTIVE_VERIFICATION adaptive = Settings.IMP.MAIN.ADAPTIVE_VERIFICATION;
-      this.adaptiveMode = AdaptiveModeSelector.resolve(
-          adaptive.MODE, adaptive.TEST_USERNAMES, this.proxyPlayer.getUsername());
+      this.adaptiveMode = adaptivePolicy.mode();
       this.adaptiveSession = this.createAdaptiveSession(adaptive);
     }
   }

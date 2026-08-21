@@ -18,6 +18,8 @@
 package net.elytrium.limbofilter.verification;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
 import org.junit.jupiter.api.Test;
@@ -40,5 +42,23 @@ class AdaptiveModeSelectorTest {
         AdaptiveModeSelector.resolve(AdaptiveMode.SHADOW, List.of(), "TestPlayer"));
     assertEquals(AdaptiveMode.ENFORCE,
         AdaptiveModeSelector.resolve(AdaptiveMode.ENFORCE, List.of("SomeoneElse"), "TestPlayer"));
+  }
+
+  @Test
+  void forcesTheFullPipelineForAFullTestUsername() {
+    AdaptiveModeSelector.Policy policy = AdaptiveModeSelector.resolvePolicy(
+        AdaptiveMode.OFF, List.of(), List.of("  GrocerMC  "), "grocermc");
+
+    assertEquals(AdaptiveMode.ENFORCE, policy.mode());
+    assertTrue(policy.forceCaptcha());
+  }
+
+  @Test
+  void keepsCaptchaOptionalForAnAdaptiveOnlyTestUsername() {
+    AdaptiveModeSelector.Policy policy = AdaptiveModeSelector.resolvePolicy(
+        AdaptiveMode.OFF, List.of("CodexQA_728"), List.of("GrocerMC"), "codexqa_728");
+
+    assertEquals(AdaptiveMode.ENFORCE, policy.mode());
+    assertFalse(policy.forceCaptcha());
   }
 }

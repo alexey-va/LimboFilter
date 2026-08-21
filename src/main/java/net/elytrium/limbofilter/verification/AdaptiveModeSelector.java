@@ -26,14 +26,28 @@ public final class AdaptiveModeSelector {
   }
 
   public static AdaptiveMode resolve(AdaptiveMode globalMode, List<String> testUsernames, String username) {
+    return resolvePolicy(globalMode, testUsernames, List.of(), username).mode();
+  }
+
+  public static Policy resolvePolicy(AdaptiveMode globalMode, List<String> testUsernames,
+                                     List<String> fullTestUsernames, String username) {
     Objects.requireNonNull(globalMode, "globalMode");
     Objects.requireNonNull(testUsernames, "testUsernames");
+    Objects.requireNonNull(fullTestUsernames, "fullTestUsernames");
     Objects.requireNonNull(username, "username");
 
-    boolean testUser = testUsernames.stream()
+    boolean fullTestUser = containsUsername(fullTestUsernames, username);
+    boolean testUser = fullTestUser || containsUsername(testUsernames, username);
+    return new Policy(testUser ? AdaptiveMode.ENFORCE : globalMode, fullTestUser);
+  }
+
+  private static boolean containsUsername(List<String> usernames, String username) {
+    return usernames.stream()
         .filter(Objects::nonNull)
         .map(String::trim)
         .anyMatch(username::equalsIgnoreCase);
-    return testUser ? AdaptiveMode.ENFORCE : globalMode;
+  }
+
+  public record Policy(AdaptiveMode mode, boolean forceCaptcha) {
   }
 }
