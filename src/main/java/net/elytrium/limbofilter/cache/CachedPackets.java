@@ -41,6 +41,7 @@ import net.elytrium.limboapi.api.protocol.item.ItemComponentMap;
 import net.elytrium.limboapi.api.protocol.packets.PacketFactory;
 import net.elytrium.limbofilter.LimboFilter;
 import net.elytrium.limbofilter.Settings;
+import net.elytrium.limbofilter.captcha.advanced.MemoryGridLayout;
 import net.elytrium.limbofilter.protocol.data.ItemFrame;
 import net.elytrium.limbofilter.protocol.packets.SetEntityMetadata;
 import net.elytrium.limbofilter.protocol.packets.SpawnEntity;
@@ -70,6 +71,9 @@ public class CachedPackets {
   private PreparedPacket framedCaptchaPackets;
   private PreparedPacket interactiveCaptchaPackets;
   private PreparedPacket adaptiveVerificationPlatformPackets;
+  private PreparedPacket memoryGridPlatformPackets;
+  private PreparedPacket memoryGridPreviewInstruction;
+  private PreparedPacket memoryGridGoInstruction;
 
   public void createPackets(LimboFactory limboFactory, PacketFactory packetFactory, VirtualWorld filterWorld) {
     Settings.MAIN.STRINGS strings = Settings.IMP.MAIN.STRINGS;
@@ -83,6 +87,11 @@ public class CachedPackets {
     this.fallingCheckPackets = this.createFallingCheckPackets(limboFactory, packetFactory);
     this.adaptiveVerificationPlatformPackets =
         this.createAdaptiveVerificationPlatformPackets(limboFactory, packetFactory, filterWorld);
+    this.memoryGridPlatformPackets = this.createMemoryGridPlatformPackets(limboFactory, packetFactory, filterWorld);
+    this.memoryGridPreviewInstruction = this.createFallingCheckTitleAndChatPackets(
+        limboFactory, strings.MEMORY_GRID_PREVIEW_TITLE, strings.MEMORY_GRID_PREVIEW_SUBTITLE, "");
+    this.memoryGridGoInstruction = this.createFallingCheckTitleAndChatPackets(
+        limboFactory, strings.MEMORY_GRID_GO_TITLE, strings.MEMORY_GRID_GO_SUBTITLE, "");
     this.fallingCheckTitleAndChat =
         this.createFallingCheckTitleAndChatPackets(limboFactory, strings.CHECKING_TITLE, strings.CHECKING_SUBTITLE, strings.CHECKING_CHAT);
     this.captchaFailed = this.createDisconnectPacket(limboFactory, strings.CAPTCHA_FAILED_KICK);
@@ -251,6 +260,9 @@ public class CachedPackets {
     this.singleDispose(this.framedCaptchaPackets);
     this.singleDispose(this.interactiveCaptchaPackets);
     this.singleDispose(this.adaptiveVerificationPlatformPackets);
+    this.singleDispose(this.memoryGridPlatformPackets);
+    this.singleDispose(this.memoryGridPreviewInstruction);
+    this.singleDispose(this.memoryGridGoInstruction);
   }
 
   private void singleDispose(PreparedPacket packet) {
@@ -307,6 +319,22 @@ public class CachedPackets {
     );
     prepareLevelChunksLoadStart(preparedPacket, packetFactory);
     for (ChallengeProgramFactory.ChunkCoordinate coordinate : ChallengeProgramFactory.platformChunks()) {
+      VirtualChunk chunk = filterWorld.getChunkOrNew(coordinate.x() << 4, coordinate.z() << 4);
+      preparedPacket.prepare(packetFactory.createChunkDataPacket(
+          chunk.getFullChunkSnapshot(), filterWorld.getDimension()
+      ));
+    }
+    return preparedPacket.build();
+  }
+
+  private PreparedPacket createMemoryGridPlatformPackets(LimboFactory limboFactory,
+                                                          PacketFactory packetFactory,
+                                                          VirtualWorld filterWorld) {
+    PreparedPacket preparedPacket = limboFactory.createPreparedPacket().prepare(
+        this.createUpdateViewPosition(packetFactory, 0, 0), ProtocolVersion.MINECRAFT_1_14
+    );
+    prepareLevelChunksLoadStart(preparedPacket, packetFactory);
+    for (MemoryGridLayout.ChunkCoordinate coordinate : MemoryGridLayout.chunks()) {
       VirtualChunk chunk = filterWorld.getChunkOrNew(coordinate.x() << 4, coordinate.z() << 4);
       preparedPacket.prepare(packetFactory.createChunkDataPacket(
           chunk.getFullChunkSnapshot(), filterWorld.getDimension()
@@ -514,5 +542,17 @@ public class CachedPackets {
 
   public PreparedPacket getInteractiveCaptchaPackets() {
     return this.interactiveCaptchaPackets;
+  }
+
+  public PreparedPacket getMemoryGridPlatformPackets() {
+    return this.memoryGridPlatformPackets;
+  }
+
+  public PreparedPacket getMemoryGridPreviewInstruction() {
+    return this.memoryGridPreviewInstruction;
+  }
+
+  public PreparedPacket getMemoryGridGoInstruction() {
+    return this.memoryGridGoInstruction;
   }
 }

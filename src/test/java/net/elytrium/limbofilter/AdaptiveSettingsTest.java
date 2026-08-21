@@ -111,6 +111,14 @@ class AdaptiveSettingsTest {
     assertInvalid(new Settings.MAIN.ADAPTIVE_VERIFICATION(), captcha, false);
 
     captcha = new Settings.MAIN.ONE_TIME_CAPTCHA();
+    captcha.MEMORY_GRID_PREVIEW_MILLIS = 1_499;
+    assertInvalid(new Settings.MAIN.ADAPTIVE_VERIFICATION(), captcha, false);
+
+    captcha = new Settings.MAIN.ONE_TIME_CAPTCHA();
+    captcha.MEMORY_GRID_PREVIEW_MILLIS = 10_001;
+    assertInvalid(new Settings.MAIN.ADAPTIVE_VERIFICATION(), captcha, false);
+
+    captcha = new Settings.MAIN.ONE_TIME_CAPTCHA();
     captcha.FAMILIES = List.of();
     assertInvalid(new Settings.MAIN.ADAPTIVE_VERIFICATION(), captcha, false);
 

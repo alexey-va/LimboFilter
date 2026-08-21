@@ -21,5 +21,10 @@ public enum CaptchaFamily {
   TEXT,
   ARITHMETIC,
   MARKED_GLYPHS,
-  ITEM_SEQUENCE
+  ITEM_SEQUENCE,
+  MEMORY_GRID;
+
+  public boolean usesThreeByThreeWall() {
+    return this == ITEM_SEQUENCE || this == MEMORY_GRID;
+  }
 }

@@ -41,7 +41,9 @@ class AdvancedCaptchaRendererTest {
       RenderedCaptcha captcha = this.renderer.render(family, new Random(1000L + family.ordinal()));
 
       assertEquals(family, captcha.family());
-      int expectedSize = family == CaptchaFamily.ITEM_SEQUENCE ? 3 * 128 : 128;
+      boolean wallChallenge = family == CaptchaFamily.ITEM_SEQUENCE
+          || family.name().equals("MEMORY_GRID");
+      int expectedSize = wallChallenge ? 3 * 128 : 128;
       assertEquals(expectedSize, captcha.image().getWidth());
       assertEquals(expectedSize, captcha.image().getHeight());
       assertFalse(captcha.answer().isBlank());
@@ -83,6 +85,28 @@ class AdvancedCaptchaRendererTest {
     assertEquals(3 * 128, captcha.image().getWidth());
     assertEquals(3 * 128, captcha.image().getHeight());
     assertTrue(captcha.answer().matches("CLICK:(1[0-5],){2}1[0-5]"), captcha.answer());
+  }
+
+  @Test
+  void memoryGridRendersAnAdjacentWalkablePathFromTheEntrance() {
+    RenderedCaptcha captcha = this.renderer.render(
+        CaptchaFamily.valueOf("MEMORY_GRID"), new Random(42L));
+
+    assertEquals(3 * 128, captcha.image().getWidth());
+    assertEquals(3 * 128, captcha.image().getHeight());
+    assertTrue(captcha.answer().matches("WALK:[0-8](,[0-8]){2}"), captcha.answer());
+
+    int[] tiles = java.util.Arrays.stream(captcha.answer().substring("WALK:".length()).split(","))
+        .mapToInt(Integer::parseInt)
+        .toArray();
+    assertTrue(tiles[0] <= 2, "the first tile must be reachable from the north entrance");
+    assertEquals(3, java.util.Arrays.stream(tiles).distinct().count());
+    for (int index = 1; index < tiles.length; ++index) {
+      int rowDistance = Math.abs(tiles[index] / 3 - tiles[index - 1] / 3);
+      int columnDistance = Math.abs(tiles[index] % 3 - tiles[index - 1] % 3);
+      assertEquals(1, rowDistance + columnDistance,
+          "successive memory tiles must share an edge");
+    }
   }
 
   @Test

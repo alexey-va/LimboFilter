@@ -17,17 +17,19 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.15` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.16` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
   skipped-tick envelopes, randomized collision platforms, and optional
   horizontal/vertical impulse checks on Minecraft 1.21.2+;
-- single-use map CAPTCHAs from `TEXT`, `ARITHMETIC`, `MARKED_GLYPHS`, and
-  `ITEM_SEQUENCE` families, generated asynchronously into a bounded heap-backed
+- single-use map CAPTCHAs from `TEXT`, `ARITHMETIC`, `MARKED_GLYPHS`,
+  `ITEM_SEQUENCE`, and `MEMORY_GRID` families, generated asynchronously into a bounded heap-backed
   pool. `ITEM_SEQUENCE` shows three ordered targets above six randomized
   objects on a 3x3 item-frame wall and validates real entity interaction
-  packets instead of chat text.
+  packets instead of chat text. `MEMORY_GRID` shows a numbered route on the
+  same wall, then teleports the player to a matching colored 3x3 floor and
+  validates grounded movement through the remembered cells.
 
 The adaptive verifier has three modes:
 
@@ -66,7 +68,8 @@ one-time-captcha:
   pool-size: 128
   refill-low-water-mark: 32
   generator-threads: 1
-  families: [TEXT, ARITHMETIC, MARKED_GLYPHS, ITEM_SEQUENCE]
+  memory-grid-preview-millis: 3000
+  families: [TEXT, ARITHMETIC, MARKED_GLYPHS, ITEM_SEQUENCE, MEMORY_GRID]
 ```
 
 `test-usernames` is case-insensitive. It is intended for a real-client pilot:
@@ -94,6 +97,12 @@ fixed 3x3 wall even when normal framed CAPTCHA mode is disabled. The top row is
 instruction-only; the six lower frames are selectable. Duplicate packets for
 the last selected frame are ignored to tolerate main/off-hand client echoes,
 while another selectable frame fails the current attempt immediately.
+
+`MEMORY_GRID` reuses that wall for a three-step route preview. After the bounded
+preview delay, the player is moved to a real colored-wool grid. The challenge
+requires the teleport nonce and grounded movement through the three adjacent
+cells in order; chat, item-frame clicks, duplicate positions, and movement
+outside the grid cannot complete it.
 
 Adaptive sessions preload the real collision-platform chunks before waiting
 for movement. Minecraft 1.20.3+ first receives a temporary out-of-height anchor

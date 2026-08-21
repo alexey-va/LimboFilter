@@ -25,19 +25,30 @@ public final class InteractiveCaptchaSession {
 
   private static final int FIRST_OPTION_ENTITY_ID = 10;
   private static final int LAST_OPTION_ENTITY_ID = 15;
-  private static final Pattern ANSWER_PATTERN = Pattern.compile("^CLICK:(1[0-5]),(1[0-5]),(1[0-5])$");
+  private static final Pattern ANSWER_PATTERN = Pattern.compile("^(CLICK|WALK):([0-9]+),([0-9]+),([0-9]+)$");
 
+  private final Kind kind;
   private final int[] targetEntityIds;
   private int selectedCount;
   private int lastSelectedEntityId = -1;
   private boolean terminal;
 
-  private InteractiveCaptchaSession(int[] targetEntityIds) {
+  private InteractiveCaptchaSession(Kind kind, int[] targetEntityIds) {
+    this.kind = kind;
     this.targetEntityIds = targetEntityIds;
   }
 
   public static boolean isInteractiveAnswer(String answer) {
-    return answer != null && ANSWER_PATTERN.matcher(answer).matches();
+    try {
+      fromAnswer(answer);
+      return true;
+    } catch (IllegalArgumentException exception) {
+      return false;
+    }
+  }
+
+  public static boolean isMemoryGridAnswer(String answer) {
+    return isInteractiveAnswer(answer) && answer.startsWith("WALK:");
   }
 
   public static InteractiveCaptchaSession fromAnswer(String answer) {
@@ -46,19 +57,23 @@ public final class InteractiveCaptchaSession {
       throw new IllegalArgumentException("invalid interactive captcha answer");
     }
 
+    Kind kind = Kind.valueOf(matcher.group(1));
     int[] targetEntityIds = {
-        Integer.parseInt(matcher.group(1)),
         Integer.parseInt(matcher.group(2)),
-        Integer.parseInt(matcher.group(3))
+        Integer.parseInt(matcher.group(3)),
+        Integer.parseInt(matcher.group(4))
     };
     if (Arrays.stream(targetEntityIds).distinct().count() != targetEntityIds.length) {
       throw new IllegalArgumentException("interactive captcha targets must be unique");
     }
-    return new InteractiveCaptchaSession(targetEntityIds);
+    if (Arrays.stream(targetEntityIds).anyMatch(target -> !kind.accepts(target))) {
+      throw new IllegalArgumentException("interactive captcha target is outside its selectable range");
+    }
+    return new InteractiveCaptchaSession(kind, targetEntityIds);
   }
 
   public SelectionResult select(int entityId) {
-    if (this.terminal || entityId < FIRST_OPTION_ENTITY_ID || entityId > LAST_OPTION_ENTITY_ID
+    if (this.terminal || !this.kind.accepts(entityId)
         || entityId == this.lastSelectedEntityId) {
       return SelectionResult.IGNORED;
     }
@@ -82,5 +97,22 @@ public final class InteractiveCaptchaSession {
     PENDING,
     PASSED,
     FAILED
+  }
+
+  private enum Kind {
+    CLICK(FIRST_OPTION_ENTITY_ID, LAST_OPTION_ENTITY_ID),
+    WALK(0, 8);
+
+    private final int firstTarget;
+    private final int lastTarget;
+
+    Kind(int firstTarget, int lastTarget) {
+      this.firstTarget = firstTarget;
+      this.lastTarget = lastTarget;
+    }
+
+    private boolean accepts(int target) {
+      return target >= this.firstTarget && target <= this.lastTarget;
+    }
   }
 }

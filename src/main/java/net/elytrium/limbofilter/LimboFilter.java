@@ -57,6 +57,7 @@ import net.elytrium.limbofilter.cache.CachedPackets;
 import net.elytrium.limbofilter.captcha.CaptchaGenerator;
 import net.elytrium.limbofilter.captcha.CaptchaHolder;
 import net.elytrium.limbofilter.captcha.advanced.CaptchaFamily;
+import net.elytrium.limbofilter.captcha.advanced.MemoryGridLayout;
 import net.elytrium.limbofilter.commands.LimboFilterCommand;
 import net.elytrium.limbofilter.commands.SendFilterCommand;
 import net.elytrium.limbofilter.handler.BotFilterSessionHandler;
@@ -194,7 +195,7 @@ public class LimboFilter {
     long mapsPerCaptcha = Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
         ? (long) Settings.IMP.MAIN.FRAMED_CAPTCHA.WIDTH * Settings.IMP.MAIN.FRAMED_CAPTCHA.HEIGHT : 1L;
     if (Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED
-        && Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES.contains(CaptchaFamily.ITEM_SEQUENCE)) {
+        && Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES.stream().anyMatch(CaptchaFamily::usesThreeByThreeWall)) {
       mapsPerCaptcha = Math.max(mapsPerCaptcha, 9L);
     }
     captchaGeneratorRamConsumed *= mapsPerCaptcha;
@@ -257,7 +258,7 @@ public class LimboFilter {
 
     // Make LimboAPI preload parent to captcha chunks to ensure that Sodium can properly render captcha.
     boolean interactiveCaptchaEnabled = Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED
-        && Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES.contains(CaptchaFamily.ITEM_SEQUENCE);
+        && Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES.stream().anyMatch(CaptchaFamily::usesThreeByThreeWall);
     if (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED || interactiveCaptchaEnabled) {
       Settings.MAIN.FRAMED_CAPTCHA settings = Settings.IMP.MAIN.FRAMED_CAPTCHA;
       int captchaFrameWidth = interactiveCaptchaEnabled ? Math.max(3, settings.WIDTH) : settings.WIDTH;
@@ -287,7 +288,7 @@ public class LimboFilter {
       }
     }
 
-    this.createAdaptiveVerificationPlatforms();
+    this.createVerificationPlatforms();
 
     if (Settings.IMP.MAIN.WORLD_OVERRIDE_BLOCK_LIGHT_LEVEL) {
       this.filterWorld.fillBlockLight(Settings.IMP.MAIN.WORLD_LIGHT_LEVEL);
@@ -411,7 +412,7 @@ public class LimboFilter {
         .schedule();
   }
 
-  private void createAdaptiveVerificationPlatforms() {
+  private void createVerificationPlatforms() {
     var platformBlock = this.limboFactory.createSimpleBlock("minecraft:stone");
     int platformBlockRadius = ChallengeProgramFactory.platformBlockRadius();
     for (MotionVector center : ChallengeProgramFactory.platformCenters()) {
@@ -420,6 +421,24 @@ public class LimboFilter {
         for (int z = -platformBlockRadius; z <= platformBlockRadius; ++z) {
           this.filterWorld.setBlock((int) center.x() + x, blockY, (int) center.z() + z, platformBlock);
         }
+      }
+    }
+
+    if (!Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED
+        || !Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES.contains(CaptchaFamily.MEMORY_GRID)) {
+      return;
+    }
+
+    for (int x = MemoryGridLayout.gridMinBlock(); x <= MemoryGridLayout.gridMaxBlock(); ++x) {
+      for (int z = MemoryGridLayout.gridMinBlock(); z <= MemoryGridLayout.gridMaxBlock(); ++z) {
+        int tile = MemoryGridLayout.tileForBlock(x, z);
+        var tileBlock = this.limboFactory.createSimpleBlock(MemoryGridLayout.materialForTile(tile));
+        this.filterWorld.setBlock(x, MemoryGridLayout.blockY(), z, tileBlock);
+      }
+    }
+    for (int x = -1; x <= 1; ++x) {
+      for (int z = MemoryGridLayout.startPadMinZ(); z <= MemoryGridLayout.startPadMaxZ(); ++z) {
+        this.filterWorld.setBlock(x, MemoryGridLayout.blockY(), z, platformBlock);
       }
     }
   }

@@ -60,4 +60,28 @@ class InteractiveCaptchaSessionTest {
     assertThrows(IllegalArgumentException.class,
         () -> InteractiveCaptchaSession.fromAnswer("CLICK:15,15,10"));
   }
+
+  @Test
+  void validatesWalkingTilesInTheRememberedOrder() {
+    InteractiveCaptchaSession session = InteractiveCaptchaSession.fromAnswer("WALK:1,4,7");
+
+    assertEquals(InteractiveCaptchaSession.SelectionResult.PENDING, session.select(1));
+    assertEquals(InteractiveCaptchaSession.SelectionResult.IGNORED, session.select(1));
+    assertEquals(InteractiveCaptchaSession.SelectionResult.PENDING, session.select(4));
+    assertEquals(InteractiveCaptchaSession.SelectionResult.PASSED, session.select(7));
+  }
+
+  @Test
+  void failsWalkingAttemptOnAnotherGridTile() {
+    InteractiveCaptchaSession session = InteractiveCaptchaSession.fromAnswer("WALK:1,4,7");
+
+    assertEquals(InteractiveCaptchaSession.SelectionResult.FAILED, session.select(2));
+    assertEquals(InteractiveCaptchaSession.SelectionResult.IGNORED, session.select(1));
+  }
+
+  @Test
+  void recognizesMemoryGridAnswersAsInteractive() {
+    assertTrue(InteractiveCaptchaSession.isInteractiveAnswer("WALK:1,4,7"));
+    assertFalse(InteractiveCaptchaSession.isInteractiveAnswer("WALK:1,1,4"));
+  }
 }

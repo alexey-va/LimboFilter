@@ -59,6 +59,9 @@ public final class AdvancedCaptchaRenderer {
     if (family == CaptchaFamily.ITEM_SEQUENCE) {
       return ItemSequenceCaptchaRenderer.render(random);
     }
+    if (family == CaptchaFamily.MEMORY_GRID) {
+      return MemoryGridCaptchaRenderer.render(random);
+    }
 
     BufferedImage image = new BufferedImage(this.width, this.height, BufferedImage.TYPE_INT_ARGB);
     Graphics2D graphics = image.createGraphics();
@@ -70,6 +73,7 @@ public final class AdvancedCaptchaRenderer {
       case ARITHMETIC -> this.drawArithmeticChallenge(graphics, random);
       case MARKED_GLYPHS -> this.drawMarkedGlyphChallenge(graphics, random);
       case ITEM_SEQUENCE -> throw new IllegalStateException("item sequence is rendered separately");
+      case MEMORY_GRID -> throw new IllegalStateException("memory grid is rendered separately");
     };
 
     this.drawInterference(graphics, random);

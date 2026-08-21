@@ -35,6 +35,7 @@ import net.elytrium.limbofilter.LimboFilter;
 import net.elytrium.limbofilter.Settings;
 import net.elytrium.limbofilter.captcha.CaptchaHolder;
 import net.elytrium.limbofilter.captcha.advanced.InteractiveCaptchaSession;
+import net.elytrium.limbofilter.captcha.advanced.MemoryGridChallenge;
 import net.elytrium.limbofilter.listener.TcpListener;
 import net.elytrium.limbofilter.protocol.data.EntityMetadata;
 import net.elytrium.limbofilter.protocol.data.ItemFrame;
@@ -57,6 +58,7 @@ import net.elytrium.limbofilter.verification.VerificationResult;
 public class BotFilterSessionHandler implements LimboSessionHandler {
 
   private static final double[] LOADED_CHUNK_SPEED_CACHE = new double[Settings.IMP.MAIN.FALLING_CHECK_TICKS];
+  private static final SecureRandom CAPTCHA_RANDOM = new SecureRandom();
   private static long FALLING_CHECK_TOTAL_TIME;
 
   private final Map<Integer, Integer> frameRotation = new HashMap<>();
@@ -91,6 +93,8 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   private Limbo server;
   private String captchaAnswer;
   private InteractiveCaptchaSession interactiveCaptchaSession;
+  private MemoryGridChallenge memoryGridChallenge;
+  private CaptchaHolder pendingMemoryGridCaptcha;
   private int attempts = Settings.IMP.MAIN.CAPTCHA_ATTEMPTS;
   private int nonValidPacketsSize;
   private boolean startedListening;
@@ -100,6 +104,8 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   private boolean adaptiveLoading;
   private boolean adaptiveChallengeStarted;
   private ScheduledFuture<?> adaptiveLoadingTask;
+  private ScheduledFuture<?> memoryGridPreviewTask;
+  private boolean memoryGridTraversalActive;
 
   public BotFilterSessionHandler(Player proxyPlayer, LimboFilter plugin) {
     this.proxyPlayer = proxyPlayer;
@@ -229,6 +235,12 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   public void onMove(double x, double y, double z) {
     this.traceAdaptivePacket("inbound", "move",
         "position=(" + x + ", " + y + ", " + z + "), onGround=" + this.onGround);
+    if (this.memoryGridTraversalActive && this.memoryGridChallenge != null) {
+      MemoryGridChallenge.Result result = this.memoryGridChallenge.move(x, y, z, this.onGround);
+      this.traceAdaptivePacket("check", "memory-grid-move", "result=" + result);
+      this.handleMemoryGridResult(result);
+      return;
+    }
     if (this.adaptiveLoading) {
       return;
     }
@@ -343,6 +355,12 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   @Override
   public void onTeleport(int teleportId) {
     this.traceAdaptivePacket("inbound", "teleport-confirm", "teleportId=" + teleportId);
+    if (this.memoryGridTraversalActive && this.memoryGridChallenge != null) {
+      MemoryGridChallenge.Result result = this.memoryGridChallenge.confirmTeleport(teleportId);
+      this.traceAdaptivePacket("check", "memory-grid-teleport", "result=" + result);
+      this.handleMemoryGridResult(result);
+      return;
+    }
     if (this.adaptiveLoading) {
       if (teleportId == AdaptiveLoadingGate.TELEPORT_ID && this.adaptiveLoadingTask == null) {
         this.traceAdaptivePacket("state", "loading-anchor-confirmed",
@@ -376,7 +394,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.traceAdaptivePacket("inbound", "chat",
         "length=" + message.length() + ", state=" + this.state);
     if (this.state == CheckState.CAPTCHA_POSITION || this.state == CheckState.ONLY_CAPTCHA) {
-      if (this.interactiveCaptchaSession != null) {
+      if (this.interactiveCaptchaSession != null || this.memoryGridChallenge != null) {
         this.traceAdaptivePacket("check", "interactive-captcha-chat", "ignored=true");
         return;
       }
@@ -415,6 +433,11 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
       }
     } else if (packet instanceof Interact) {
       Interact interact = (Interact) packet;
+      if (this.memoryGridChallenge != null
+          && (this.state == CheckState.CAPTCHA_POSITION || this.state == CheckState.ONLY_CAPTCHA)) {
+        this.traceAdaptivePacket("check", "memory-grid-click", "ignored=true");
+        return;
+      }
       if (this.interactiveCaptchaSession != null
           && (this.state == CheckState.CAPTCHA_POSITION || this.state == CheckState.ONLY_CAPTCHA)) {
         InteractiveCaptchaSession.SelectionResult result =
@@ -452,6 +475,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     if (this.adaptiveLoadingTask != null) {
       this.adaptiveLoadingTask.cancel(true);
     }
+    this.cancelMemoryGridPreview();
 
     TcpListener tcpListener = this.plugin.getTcpListener();
     if (tcpListener != null) {
@@ -546,10 +570,15 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.waitingTeleportId = this.validTeleportId;
     if (this.captchaAnswer == null) {
       this.sendCaptcha();
+    } else if (this.pendingMemoryGridCaptcha != null) {
+      CaptchaHolder captchaHolder = this.pendingMemoryGridCaptcha;
+      this.pendingMemoryGridCaptcha = null;
+      this.sendCaptchaPackets(captchaHolder);
     }
   }
 
   private void sendCaptcha() {
+    this.clearMemoryGridState();
     CaptchaHolder captchaHolder = this.plugin.getNextCaptcha();
 
     if (captchaHolder == null) {
@@ -558,34 +587,114 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     }
 
     this.captchaAnswer = captchaHolder.getAnswer();
-    this.interactiveCaptchaSession = InteractiveCaptchaSession.isInteractiveAnswer(this.captchaAnswer)
+    boolean memoryGrid = InteractiveCaptchaSession.isMemoryGridAnswer(this.captchaAnswer);
+    this.interactiveCaptchaSession = InteractiveCaptchaSession.isInteractiveAnswer(this.captchaAnswer) && !memoryGrid
         ? InteractiveCaptchaSession.fromAnswer(this.captchaAnswer) : null;
+    this.memoryGridChallenge = memoryGrid
+        ? MemoryGridChallenge.fromAnswer(this.captchaAnswer, CAPTCHA_RANDOM.nextInt(1, Integer.MAX_VALUE)) : null;
+    if (memoryGrid && this.state != CheckState.ONLY_CAPTCHA) {
+      this.pendingMemoryGridCaptcha = captchaHolder;
+      this.traceAdaptivePacket("state", "memory-grid-preview", "deferredUntilCaptchaState=true");
+      return;
+    }
+    this.sendCaptchaPackets(captchaHolder);
+  }
+
+  private void sendCaptchaPackets(CaptchaHolder captchaHolder) {
+    boolean memoryGrid = this.memoryGridChallenge != null;
     this.traceAdaptivePacket("outbound", "captcha",
         "attempts=" + this.attempts + ", answerLength=" + this.captchaAnswer.length()
-            + ", interactive=" + (this.interactiveCaptchaSession != null));
+            + ", interactive=" + (this.interactiveCaptchaSession != null) + ", memoryGrid=" + memoryGrid);
 
-    PreparedPacket framedCaptchaPacket = this.interactiveCaptchaSession == null
+    PreparedPacket framedCaptchaPacket = this.interactiveCaptchaSession == null && !memoryGrid
         ? this.plugin.getPackets().getFramedCaptchaPackets()
         : this.plugin.getPackets().getInteractiveCaptchaPackets();
     if (framedCaptchaPacket != null) {
       this.player.writePacket(framedCaptchaPacket);
     }
 
-    this.player.writePacket(this.interactiveCaptchaSession == null
+    this.player.writePacket(this.interactiveCaptchaSession == null && !memoryGrid
         ? this.plugin.getPackets().getCaptchaAttemptsPacket(this.attempts)
         : this.plugin.getPackets().getInteractiveCaptchaAttemptsPacket(this.attempts));
+    if (memoryGrid) {
+      PreparedPacket previewInstruction = this.plugin.getPackets().getMemoryGridPreviewInstruction();
+      if (previewInstruction != null) {
+        this.player.writePacket(previewInstruction);
+      }
+    }
     for (Object packet : captchaHolder.getMapPacket(this.version)) {
       this.player.writePacket(packet);
     }
 
     this.player.flushPackets();
+    if (memoryGrid) {
+      MemoryGridChallenge challenge = this.memoryGridChallenge;
+      this.memoryGridPreviewTask = this.player.getScheduledExecutor().schedule(
+          () -> this.startMemoryGridTraversal(challenge),
+          Settings.IMP.MAIN.ONE_TIME_CAPTCHA.MEMORY_GRID_PREVIEW_MILLIS,
+          TimeUnit.MILLISECONDS);
+    }
   }
 
   private void handleCaptchaFailure() {
+    this.clearMemoryGridState();
     if (--this.attempts != 0) {
       this.sendCaptcha();
     } else {
       this.disconnect(this.plugin.getPackets().getCaptchaFailed(), true);
+    }
+  }
+
+  private void startMemoryGridTraversal(MemoryGridChallenge challenge) {
+    if (challenge == null || challenge != this.memoryGridChallenge || this.state != CheckState.ONLY_CAPTCHA) {
+      return;
+    }
+
+    final MemoryGridChallenge.Traversal traversal = challenge.beginTraversal();
+    this.memoryGridTraversalActive = true;
+    this.onGround = false;
+    this.player.writePacket(this.plugin.getPackets().getMemoryGridPlatformPackets());
+    this.player.writePacket(this.plugin.getPacketFactory().createPositionRotationPacket(
+        traversal.x(), traversal.y(), traversal.z(), 0.0F, 0.0F,
+        false, traversal.teleportId(), true));
+    PreparedPacket goInstruction = this.plugin.getPackets().getMemoryGridGoInstruction();
+    if (goInstruction != null) {
+      this.player.writePacket(goInstruction);
+    }
+    this.player.flushPackets();
+    this.traceAdaptivePacket("state", "memory-grid-traversal",
+        "started=true, teleportId=" + traversal.teleportId());
+
+    if (this.version.compareTo(ProtocolVersion.MINECRAFT_1_8) <= 0) {
+      this.handleMemoryGridResult(challenge.confirmTeleport(traversal.teleportId()));
+    }
+  }
+
+  private void handleMemoryGridResult(MemoryGridChallenge.Result result) {
+    if (result == MemoryGridChallenge.Result.IGNORED || result == MemoryGridChallenge.Result.PENDING) {
+      return;
+    }
+    this.traceAdaptivePacket("state", "memory-grid-terminal", "result=" + result);
+    if (result == MemoryGridChallenge.Result.PASSED) {
+      this.clearMemoryGridState();
+      this.player.writePacketAndFlush(this.plugin.getPackets().getResetSlot());
+      this.finishCheck();
+    } else {
+      this.handleCaptchaFailure();
+    }
+  }
+
+  private void clearMemoryGridState() {
+    this.cancelMemoryGridPreview();
+    this.memoryGridChallenge = null;
+    this.pendingMemoryGridCaptcha = null;
+    this.memoryGridTraversalActive = false;
+  }
+
+  private void cancelMemoryGridPreview() {
+    if (this.memoryGridPreviewTask != null) {
+      this.memoryGridPreviewTask.cancel(true);
+      this.memoryGridPreviewTask = null;
     }
   }
 

@@ -362,10 +362,10 @@ public class CaptchaGenerator {
     CaptchaFamily family = families.get(random.nextInt(families.size()));
     RenderedCaptcha rendered = this.advancedRenderer.render(family, random);
 
-    int mapWidth = family == CaptchaFamily.ITEM_SEQUENCE
+    int mapWidth = family.usesThreeByThreeWall()
         ? 3 : (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
             ? Settings.IMP.MAIN.FRAMED_CAPTCHA.WIDTH : 1);
-    int mapHeight = family == CaptchaFamily.ITEM_SEQUENCE
+    int mapHeight = family.usesThreeByThreeWall()
         ? 3 : (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
             ? Settings.IMP.MAIN.FRAMED_CAPTCHA.HEIGHT : 1);
     int pixelWidth = MapData.MAP_DIM_SIZE * mapWidth;
@@ -373,7 +373,7 @@ public class CaptchaGenerator {
     BufferedImage challengeImage = this.resizeIfNeeded(rendered.image(), pixelWidth, pixelHeight);
     CraftMapCanvas map = new CraftMapCanvas(mapWidth, mapHeight);
     map.drawImage(challengeImage, pixelWidth, pixelHeight);
-    CaptchaPacketData packetData = this.createPacketData(map, random, family != CaptchaFamily.ITEM_SEQUENCE);
+    CaptchaPacketData packetData = this.createPacketData(map, random, !family.usesThreeByThreeWall());
 
     MinecraftPacket[][] packetsByProtocol = new MinecraftPacket[ProtocolVersion.values().length][];
     ProtocolVersion minVersion = this.plugin.getLimboFactory().getPrepareMinVersion();
