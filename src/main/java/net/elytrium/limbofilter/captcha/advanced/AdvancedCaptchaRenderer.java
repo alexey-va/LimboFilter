@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 - 2026 Elytrium
+ * Copyright (C) 2021 - 2025 Elytrium
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -102,8 +102,8 @@ public final class AdvancedCaptchaRenderer {
     int left = 2 + random.nextInt(8);
     boolean addition = random.nextBoolean();
     int right = addition ? 1 + random.nextInt(9) : random.nextInt(left + 1);
-    String expression = left + (addition ? "+" : "-") + right;
-    int answer = addition ? left + right : left - right;
+    final String expression = left + (addition ? "+" : "-") + right;
+    final int answer = addition ? left + right : left - right;
 
     graphics.setFont(new Font(Font.SANS_SERIF, Font.BOLD, 13));
     graphics.setColor(new Color(45, 55, 70));
@@ -145,9 +145,9 @@ public final class AdvancedCaptchaRenderer {
     double slotWidth = (double) available / text.length();
 
     for (int index = 0; index < text.length(); ++index) {
-      double centerX = left + slotWidth * index + slotWidth / 2.0;
-      int jitterY = random.nextInt(-5, 6);
-      double rotation = Math.toRadians(random.nextDouble(-13.0, 13.0));
+      final double centerX = left + slotWidth * index + slotWidth / 2.0;
+      final int jitterY = random.nextInt(-5, 6);
+      final double rotation = Math.toRadians(random.nextDouble(-13.0, 13.0));
       Font font = new Font(FONT_NAMES[random.nextInt(FONT_NAMES.length)], Font.BOLD, fontSize);
 
       Graphics2D glyphGraphics = (Graphics2D) graphics.create();

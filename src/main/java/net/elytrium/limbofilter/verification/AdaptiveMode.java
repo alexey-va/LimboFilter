@@ -17,15 +17,8 @@
 
 package net.elytrium.limbofilter.verification;
 
-import java.util.Objects;
-
-public record MotionSample(int tick, MotionVector position, MotionVector velocity, boolean onGround) {
-
-  public MotionSample {
-    if (tick < 0) {
-      throw new IllegalArgumentException("tick must be non-negative");
-    }
-    Objects.requireNonNull(position, "position");
-    Objects.requireNonNull(velocity, "velocity");
-  }
+public enum AdaptiveMode {
+  OFF,
+  SHADOW,
+  ENFORCE
 }

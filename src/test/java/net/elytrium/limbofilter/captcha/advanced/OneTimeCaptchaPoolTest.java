@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 - 2026 Elytrium
+ * Copyright (C) 2021 - 2025 Elytrium
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -62,6 +62,19 @@ class OneTimeCaptchaPoolTest {
 
     assertEquals(List.of(1, 2, 3), disposed);
     assertEquals(0, pool.size());
+  }
+
+  @Test
+  void closingThePoolRejectsLateGeneratedChallenges() {
+    OneTimeCaptchaPool<Integer> pool = new OneTimeCaptchaPool<>(4, 1);
+    pool.offer(1);
+    List<Integer> disposed = new ArrayList<>();
+
+    pool.close(disposed::add);
+
+    assertEquals(List.of(1), disposed);
+    assertFalse(pool.offer(2));
+    assertTrue(pool.isClosed());
   }
 
   @Test

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 - 2026 Elytrium
+ * Copyright (C) 2021 - 2025 Elytrium
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -35,6 +35,7 @@ public final class CaptchaRefillController<T> {
   private final ExecutorService executor;
   private final AtomicBoolean refillScheduled = new AtomicBoolean();
   private final AtomicBoolean stopped = new AtomicBoolean();
+  private volatile Consumer<T> shutdownDisposer = ignored -> { };
 
   public CaptchaRefillController(OneTimeCaptchaPool<T> pool, int generatorThreads,
                                  Supplier<T> generator, Consumer<Throwable> errorHandler) {
@@ -77,10 +78,11 @@ public final class CaptchaRefillController<T> {
   }
 
   public void shutdown(Consumer<T> disposer) {
+    this.shutdownDisposer = Objects.requireNonNull(disposer, "disposer");
     if (this.stopped.compareAndSet(false, true)) {
+      this.pool.close(this.shutdownDisposer);
       this.executor.shutdownNow();
     }
-    this.pool.clear(disposer);
   }
 
   private void refill() {
@@ -88,7 +90,13 @@ public final class CaptchaRefillController<T> {
     try {
       while (!this.stopped.get() && this.pool.remainingCapacity() > 0) {
         T challenge = this.generator.get();
-        if (challenge == null || !this.pool.offer(challenge)) {
+        if (challenge == null) {
+          break;
+        }
+        if (!this.pool.offer(challenge)) {
+          if (this.stopped.get()) {
+            this.shutdownDisposer.accept(challenge);
+          }
           break;
         }
       }

@@ -19,13 +19,16 @@ package net.elytrium.limbofilter;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import net.elytrium.commons.config.YamlConfig;
 import net.elytrium.commons.kyori.serialization.Serializers;
 import net.elytrium.limboapi.api.chunk.Dimension;
 import net.elytrium.limboapi.api.file.BuiltInWorldFileType;
 import net.elytrium.limboapi.api.player.GameMode;
+import net.elytrium.limbofilter.captcha.advanced.CaptchaFamily;
 import net.elytrium.limbofilter.commands.CommandPermissionState;
 import net.elytrium.limbofilter.handler.BotFilterSessionHandler;
+import net.elytrium.limbofilter.verification.AdaptiveMode;
 
 public class Settings extends YamlConfig {
 
@@ -78,6 +81,37 @@ public class Settings extends YamlConfig {
     public boolean FALLING_CHECK_DEBUG = false;
     @Comment("Should captcha be displayed in the left hand. May cause problems with entering captcha for users with 4:3 monitors. Version: 1.9+")
     public boolean CAPTCHA_LEFT_HAND = false;
+
+    @Create
+    public ADAPTIVE_VERIFICATION ADAPTIVE_VERIFICATION;
+
+    public static class ADAPTIVE_VERIFICATION {
+
+      public AdaptiveMode MODE = AdaptiveMode.SHADOW;
+      public int MAX_PACKET_GAP_TICKS = 4;
+      public int MAX_SAMPLES_PER_PHASE = 160;
+      public long MAX_SESSION_MILLIS = 12000;
+      public int PHASES_PER_SESSION = 3;
+      public boolean IMPULSE_ENABLED = true;
+      public double POSITION_TOLERANCE = 0.035;
+      public double COLLISION_TOLERANCE = 0.0625;
+    }
+
+    @Create
+    public ONE_TIME_CAPTCHA ONE_TIME_CAPTCHA;
+
+    public static class ONE_TIME_CAPTCHA {
+
+      public boolean ENABLED = true;
+      public int POOL_SIZE = 128;
+      public int REFILL_LOW_WATER_MARK = 32;
+      public int GENERATOR_THREADS = 1;
+      public List<CaptchaFamily> FAMILIES = List.of(
+          CaptchaFamily.TEXT,
+          CaptchaFamily.ARITHMETIC,
+          CaptchaFamily.MARKED_GLYPHS
+      );
+    }
 
     @Comment({
         "Available states: ONLY_POSITION, ONLY_CAPTCHA, CAPTCHA_POSITION, CAPTCHA_ON_POSITION_FAILED",
@@ -453,6 +487,54 @@ public class Settings extends YamlConfig {
       public String SEND_FAILED = "{PRFX} There is no registered servers or connected players named {0}.";
 
       public String CAPTCHA_NOT_READY_YET = "{PRFX} The captcha is not ready yet. Try again in a few seconds.";
+    }
+  }
+
+  public static void validateAdvancedSettings(MAIN.ADAPTIVE_VERIFICATION adaptive,
+                                              MAIN.ONE_TIME_CAPTCHA captcha,
+                                              boolean prepareCaptchaPackets) {
+    Objects.requireNonNull(adaptive, "adaptive");
+    Objects.requireNonNull(captcha, "captcha");
+    Objects.requireNonNull(adaptive.MODE, "adaptive.mode");
+
+    if (adaptive.MAX_PACKET_GAP_TICKS < 1 || adaptive.MAX_PACKET_GAP_TICKS > 20) {
+      throw new IllegalArgumentException("adaptive max-packet-gap-ticks must be in range 1..20");
+    }
+    if (adaptive.MAX_SAMPLES_PER_PHASE < 1 || adaptive.MAX_SAMPLES_PER_PHASE > 1_000) {
+      throw new IllegalArgumentException("adaptive max-samples-per-phase must be in range 1..1000");
+    }
+    if (adaptive.MAX_SESSION_MILLIS < 1 || adaptive.MAX_SESSION_MILLIS > 60_000) {
+      throw new IllegalArgumentException("adaptive max-session-millis must be in range 1..60000");
+    }
+    if (adaptive.PHASES_PER_SESSION < 2 || adaptive.PHASES_PER_SESSION > 3) {
+      throw new IllegalArgumentException("adaptive phases-per-session must be in range 2..3");
+    }
+    requireFinitePositive(adaptive.POSITION_TOLERANCE, "adaptive position-tolerance");
+    requireFinitePositive(adaptive.COLLISION_TOLERANCE, "adaptive collision-tolerance");
+
+    if (!captcha.ENABLED) {
+      return;
+    }
+    if (captcha.POOL_SIZE < 16 || captcha.POOL_SIZE > 512) {
+      throw new IllegalArgumentException("one-time captcha pool-size must be in range 16..512");
+    }
+    if (captcha.REFILL_LOW_WATER_MARK < 0 || captcha.REFILL_LOW_WATER_MARK >= captcha.POOL_SIZE) {
+      throw new IllegalArgumentException("captcha refill-low-water-mark must be below pool-size");
+    }
+    if (captcha.GENERATOR_THREADS < 1 || captcha.GENERATOR_THREADS > 2) {
+      throw new IllegalArgumentException("captcha generator-threads must be in range 1..2");
+    }
+    if (captcha.FAMILIES == null || captcha.FAMILIES.isEmpty() || captcha.FAMILIES.stream().anyMatch(Objects::isNull)) {
+      throw new IllegalArgumentException("at least one captcha family is required");
+    }
+    if (prepareCaptchaPackets) {
+      throw new IllegalArgumentException("one-time captcha requires prepare-captcha-packets: false");
+    }
+  }
+
+  private static void requireFinitePositive(double value, String name) {
+    if (!Double.isFinite(value) || value <= 0.0) {
+      throw new IllegalArgumentException(name + " must be finite and positive");
     }
   }
 }

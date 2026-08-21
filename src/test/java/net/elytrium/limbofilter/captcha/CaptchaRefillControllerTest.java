@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 - 2026 Elytrium
+ * Copyright (C) 2021 - 2025 Elytrium
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -87,5 +87,41 @@ class CaptchaRefillControllerTest {
     controller.shutdown(disposed::add);
     assertEquals(List.of(1, 2), disposed);
     assertFalse(controller.requestRefill());
+  }
+
+  @Test
+  void disposesAChallengeThatFinishesAfterShutdown() throws InterruptedException {
+    OneTimeCaptchaPool<Integer> pool = new OneTimeCaptchaPool<>(4, 1);
+    CountDownLatch generatorEntered = new CountDownLatch(1);
+    CountDownLatch releaseGenerator = new CountDownLatch(1);
+    CountDownLatch disposed = new CountDownLatch(1);
+    AtomicInteger disposedValue = new AtomicInteger();
+    CaptchaRefillController<Integer> controller = new CaptchaRefillController<>(
+        pool, 1, () -> {
+          generatorEntered.countDown();
+          boolean released = false;
+          while (!released) {
+            try {
+              released = releaseGenerator.await(5, TimeUnit.SECONDS);
+            } catch (InterruptedException ignored) {
+              // A renderer may finish a CPU-bound image after executor interruption.
+            }
+          }
+          return 99;
+        }, failure -> {
+          throw new AssertionError(failure);
+        });
+
+    controller.start();
+    assertTrue(generatorEntered.await(5, TimeUnit.SECONDS));
+    controller.shutdown(value -> {
+      disposedValue.set(value);
+      disposed.countDown();
+    });
+    releaseGenerator.countDown();
+
+    assertTrue(disposed.await(5, TimeUnit.SECONDS));
+    assertEquals(99, disposedValue.get());
+    assertEquals(0, controller.size());
   }
 }

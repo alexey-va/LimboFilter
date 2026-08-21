@@ -52,6 +52,13 @@ dependencies {
     compileOnly("com.github.spotbugs:spotbugs-annotations:$spotbugsVersion")
 
     testImplementation("org.junit.jupiter:junit-jupiter:5.11.4")
+    testImplementation("com.velocitypowered:velocity-api:$velocityVersion")
+    testImplementation("com.velocitypowered:velocity-proxy:$velocityVersion")
+    testImplementation("io.netty:netty-buffer:$nettyVersion")
+    testRuntimeOnly("net.elytrium.commons:config:1.2.3")
+    testRuntimeOnly("net.elytrium.commons:kyori:1.2.3")
+    testRuntimeOnly("net.elytrium.commons:utils:1.2.3")
+    testRuntimeOnly("net.elytrium.commons:velocity:1.2.3")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
 }
 

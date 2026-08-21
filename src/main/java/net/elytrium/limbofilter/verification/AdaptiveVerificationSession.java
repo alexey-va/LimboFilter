@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 - 2026 Elytrium
+ * Copyright (C) 2021 - 2025 Elytrium
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -33,6 +33,7 @@ public final class AdaptiveVerificationSession {
   private long startedAt;
   private boolean started;
   private boolean teleportConfirmed;
+  private boolean initialPositionEchoAllowed;
   private MotionSample previous;
   private VerificationResult result = VerificationResult.PENDING;
 
@@ -85,6 +86,7 @@ public final class AdaptiveVerificationSession {
     }
 
     this.teleportConfirmed = true;
+    this.initialPositionEchoAllowed = true;
     this.previous = new MotionSample(0, instruction.start(), instruction.initialVelocity(), false);
     this.result = VerificationResult.PENDING;
     return this.result;
@@ -105,6 +107,13 @@ public final class AdaptiveVerificationSession {
     }
 
     ChallengeInstruction instruction = this.currentInstruction();
+    if (this.initialPositionEchoAllowed) {
+      this.initialPositionEchoAllowed = false;
+      if (!onGround && within(position, instruction.start(), this.profile.positionTolerance())) {
+        this.result = VerificationResult.PENDING;
+        return this.result;
+      }
+    }
     TrajectoryMatch match = TrajectoryEnvelope.match(
         this.previous, position, onGround, this.profile, instruction.platformTopY());
     if (!match.matched()) {
@@ -150,5 +159,11 @@ public final class AdaptiveVerificationSession {
   private static boolean insidePlatform(MotionVector position, ChallengeInstruction instruction) {
     return Math.abs(position.x() - instruction.start().x()) <= instruction.platformHalfWidth()
         && Math.abs(position.z() - instruction.start().z()) <= instruction.platformHalfWidth();
+  }
+
+  private static boolean within(MotionVector actual, MotionVector expected, double tolerance) {
+    return Math.abs(actual.x() - expected.x()) <= tolerance
+        && Math.abs(actual.y() - expected.y()) <= tolerance
+        && Math.abs(actual.z() - expected.z()) <= tolerance;
   }
 }

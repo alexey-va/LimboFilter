@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 - 2026 Elytrium
+ * Copyright (C) 2021 - 2025 Elytrium
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -26,6 +26,8 @@ public final class OneTimeCaptchaPool<T> {
   private final ArrayBlockingQueue<T> queue;
   private final int capacity;
   private final int lowWaterMark;
+  private final Object lifecycleLock = new Object();
+  private boolean closed;
 
   public OneTimeCaptchaPool(int capacity, int lowWaterMark) {
     if (capacity < 1) {
@@ -40,7 +42,10 @@ public final class OneTimeCaptchaPool<T> {
   }
 
   public boolean offer(T challenge) {
-    return this.queue.offer(Objects.requireNonNull(challenge, "challenge"));
+    Objects.requireNonNull(challenge, "challenge");
+    synchronized (this.lifecycleLock) {
+      return !this.closed && this.queue.offer(challenge);
+    }
   }
 
   public T acquire() {
@@ -65,6 +70,26 @@ public final class OneTimeCaptchaPool<T> {
 
   public void clear(Consumer<T> disposer) {
     Objects.requireNonNull(disposer, "disposer");
+    synchronized (this.lifecycleLock) {
+      this.drain(disposer);
+    }
+  }
+
+  public void close(Consumer<T> disposer) {
+    Objects.requireNonNull(disposer, "disposer");
+    synchronized (this.lifecycleLock) {
+      this.closed = true;
+      this.drain(disposer);
+    }
+  }
+
+  public boolean isClosed() {
+    synchronized (this.lifecycleLock) {
+      return this.closed;
+    }
+  }
+
+  private void drain(Consumer<T> disposer) {
     T challenge;
     while ((challenge = this.queue.poll()) != null) {
       disposer.accept(challenge);

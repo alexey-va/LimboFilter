@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 - 2026 Elytrium
+ * Copyright (C) 2021 - 2025 Elytrium
  *
  * This program is free software: you can redistribute it and/or modify
  * it under the terms of the GNU Affero General Public License as published by
@@ -40,6 +40,18 @@ class AdaptiveVerificationSessionTest {
     assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.0, 0.53584064, 0.0), false));
     assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.0, 0.2315238272, 0.0), false));
     assertEquals(VerificationResult.PASS, session.move(new MotionVector(0.0, 0.0, 0.0), true));
+  }
+
+  @Test
+  void acceptsOneInitialPositionEchoAfterTeleport() {
+    ChallengeInstruction instruction = new ChallengeInstruction(
+        ChallengePhase.FALL_COLLISION, 124, new MotionVector(0.0, 1.0, 0.0), MotionVector.ZERO, 0.0, 2.0);
+    AdaptiveVerificationSession session = session(instruction);
+
+    session.start();
+    session.confirmTeleport(124);
+    assertEquals(VerificationResult.PENDING, session.move(instruction.start(), false));
+    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.0, 0.9216, 0.0), false));
   }
 
   @Test

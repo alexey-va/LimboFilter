@@ -61,10 +61,13 @@ import net.elytrium.limbofilter.commands.SendFilterCommand;
 import net.elytrium.limbofilter.handler.BotFilterSessionHandler;
 import net.elytrium.limbofilter.listener.FilterListener;
 import net.elytrium.limbofilter.listener.TcpListener;
+import net.elytrium.limbofilter.protocol.packets.AdaptivePosition;
 import net.elytrium.limbofilter.protocol.packets.Interact;
 import net.elytrium.limbofilter.protocol.packets.SetEntityMetadata;
 import net.elytrium.limbofilter.protocol.packets.SpawnEntity;
 import net.elytrium.limbofilter.stats.Statistics;
+import net.elytrium.limbofilter.verification.ChallengeProgramFactory;
+import net.elytrium.limbofilter.verification.MotionVector;
 import net.elytrium.pcap.PcapException;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.ComponentSerializer;
@@ -165,6 +168,11 @@ public class LimboFilter {
 
   public void reload() {
     Settings.IMP.reload(this.configFile, Settings.IMP.PREFIX);
+    Settings.validateAdvancedSettings(
+        Settings.IMP.MAIN.ADAPTIVE_VERIFICATION,
+        Settings.IMP.MAIN.ONE_TIME_CAPTCHA,
+        Settings.IMP.MAIN.CAPTCHA_GENERATOR.PREPARE_CAPTCHA_PACKETS
+    );
 
     ComponentSerializer<Component, Component, String> serializer = Settings.IMP.SERIALIZER.getSerializer();
     if (serializer == null) {
@@ -174,7 +182,10 @@ public class LimboFilter {
       setSerializer(new Serializer(serializer));
     }
 
-    long captchaGeneratorRamConsumed = (long) MapData.MAP_SIZE * Settings.IMP.MAIN.CAPTCHA_GENERATOR.IMAGES_COUNT;
+    int captchaCount = Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED
+        ? Settings.IMP.MAIN.ONE_TIME_CAPTCHA.POOL_SIZE
+        : Settings.IMP.MAIN.CAPTCHA_GENERATOR.IMAGES_COUNT;
+    long captchaGeneratorRamConsumed = (long) MapData.MAP_SIZE * captchaCount;
 
     if (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED) {
       captchaGeneratorRamConsumed *= (long) Settings.IMP.MAIN.FRAMED_CAPTCHA.WIDTH * Settings.IMP.MAIN.FRAMED_CAPTCHA.HEIGHT;
@@ -265,6 +276,8 @@ public class LimboFilter {
       }
     }
 
+    this.createAdaptiveVerificationPlatforms();
+
     if (Settings.IMP.MAIN.WORLD_OVERRIDE_BLOCK_LIGHT_LEVEL) {
       this.filterWorld.fillBlockLight(Settings.IMP.MAIN.WORLD_LIGHT_LEVEL);
     }
@@ -298,6 +311,12 @@ public class LimboFilter {
             new PacketMapping(0x18, ProtocolVersion.MINECRAFT_1_21_2, false),
             new PacketMapping(0x19, ProtocolVersion.MINECRAFT_1_21_6, false),
             new PacketMapping(0x1A, ProtocolVersion.MINECRAFT_26_1, false),
+        })
+        .registerPacket(PacketDirection.CLIENTBOUND, AdaptivePosition.class, null, new PacketMapping[]{
+            new PacketMapping(0x42, ProtocolVersion.MINECRAFT_1_21_2, true),
+            new PacketMapping(0x41, ProtocolVersion.MINECRAFT_1_21_5, true),
+            new PacketMapping(0x46, ProtocolVersion.MINECRAFT_1_21_9, true),
+            new PacketMapping(0x48, ProtocolVersion.MINECRAFT_26_1, true),
         })
         .registerPacket(PacketDirection.CLIENTBOUND, SetEntityMetadata.class, null, new PacketMapping[]{
             new PacketMapping(0x1C, ProtocolVersion.MINIMUM_VERSION, true),
@@ -379,6 +398,18 @@ public class LimboFilter {
         .delay(Settings.IMP.MAIN.LOG_ENABLER_CHECK_REFRESH_RATE, TimeUnit.MILLISECONDS)
         .repeat(Settings.IMP.MAIN.LOG_ENABLER_CHECK_REFRESH_RATE, TimeUnit.MILLISECONDS)
         .schedule();
+  }
+
+  private void createAdaptiveVerificationPlatforms() {
+    var platformBlock = this.limboFactory.createSimpleBlock("minecraft:stone");
+    for (MotionVector center : ChallengeProgramFactory.platformCenters()) {
+      int blockY = (int) center.y() - 1;
+      for (int x = -4; x <= 4; ++x) {
+        for (int z = -4; z <= 4; ++z) {
+          this.filterWorld.setBlock((int) center.x() + x, blockY, (int) center.z() + z, platformBlock);
+        }
+      }
+    }
   }
 
   public void cacheFilterUser(Player player) {

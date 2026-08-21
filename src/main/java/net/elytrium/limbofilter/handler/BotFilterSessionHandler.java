@@ -22,6 +22,7 @@ import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.proxy.protocol.packet.ClientSettingsPacket;
 import com.velocitypowered.proxy.protocol.packet.PluginMessagePacket;
 import com.velocitypowered.proxy.protocol.util.PluginMessageUtil;
+import java.security.SecureRandom;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.ScheduledFuture;
@@ -36,9 +37,18 @@ import net.elytrium.limbofilter.captcha.CaptchaHolder;
 import net.elytrium.limbofilter.listener.TcpListener;
 import net.elytrium.limbofilter.protocol.data.EntityMetadata;
 import net.elytrium.limbofilter.protocol.data.ItemFrame;
+import net.elytrium.limbofilter.protocol.packets.AdaptivePosition;
 import net.elytrium.limbofilter.protocol.packets.Interact;
 import net.elytrium.limbofilter.protocol.packets.SetEntityMetadata;
 import net.elytrium.limbofilter.stats.Statistics;
+import net.elytrium.limbofilter.verification.AdaptiveMode;
+import net.elytrium.limbofilter.verification.AdaptiveVerificationSession;
+import net.elytrium.limbofilter.verification.ChallengeInstruction;
+import net.elytrium.limbofilter.verification.ChallengeProgram;
+import net.elytrium.limbofilter.verification.ChallengeProgramFactory;
+import net.elytrium.limbofilter.verification.MotionVector;
+import net.elytrium.limbofilter.verification.PhysicsProfile;
+import net.elytrium.limbofilter.verification.VerificationResult;
 
 public class BotFilterSessionHandler implements LimboSessionHandler {
 
@@ -54,6 +64,8 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   private final int validY;
   private final int validZ;
   private final int validTeleportId;
+  private final AdaptiveMode adaptiveMode;
+  private final AdaptiveVerificationSession adaptiveSession;
 
   private double posX;
   private double posY;
@@ -77,6 +89,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   private boolean startedListening;
   private boolean checkedBySettings;
   private boolean checkedByBrand;
+  private boolean adaptiveActive;
 
   public BotFilterSessionHandler(Player proxyPlayer, LimboFilter plugin) {
     this.proxyPlayer = proxyPlayer;
@@ -102,6 +115,15 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
       this.state = plugin.checkCpsLimit(Settings.IMP.MAIN.FILTER_AUTO_TOGGLE.CHECK_STATE_TOGGLE)
           ? Settings.IMP.MAIN.CHECK_STATE : Settings.IMP.MAIN.CHECK_STATE_NON_TOGGLED;
     }
+
+    if (proxyPlayer.getRemoteAddress().getPort() == 0 || this.state == CheckState.ONLY_CAPTCHA) {
+      this.adaptiveMode = AdaptiveMode.OFF;
+      this.adaptiveSession = null;
+    } else {
+      Settings.MAIN.ADAPTIVE_VERIFICATION adaptive = Settings.IMP.MAIN.ADAPTIVE_VERIFICATION;
+      this.adaptiveMode = adaptive.MODE;
+      this.adaptiveSession = this.createAdaptiveSession(adaptive);
+    }
   }
 
   @Override
@@ -112,6 +134,12 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     this.joinTime = System.currentTimeMillis();
     if (this.state == CheckState.ONLY_CAPTCHA) {
       this.changeStateToCaptcha();
+    } else if (this.adaptiveSession != null) {
+      this.adaptiveActive = true;
+      this.sendAdaptiveInstruction(this.adaptiveSession.start());
+      if (this.state != CheckState.CAPTCHA_POSITION || Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED) {
+        this.sendFallingCheckTitleAndChat();
+      }
     } else if (this.state == CheckState.ONLY_POSITION || this.state == CheckState.CAPTCHA_ON_POSITION_FAILED) {
       this.sendFallingCheckPackets();
       this.sendFallingCheckTitleAndChat();
@@ -139,6 +167,12 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
 
   @Override
   public void onMove(double x, double y, double z) {
+    if (this.adaptiveActive) {
+      VerificationResult result = this.adaptiveSession.move(new MotionVector(x, y, z), this.onGround);
+      this.handleAdaptiveResult(result);
+      return;
+    }
+
     if (this.version.compareTo(ProtocolVersion.MINECRAFT_1_8) <= 0
         && x == this.validX && y == this.validY && z == this.validZ && this.waitingTeleportId == this.validTeleportId) {
       this.ticks = 1;
@@ -240,6 +274,11 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
 
   @Override
   public void onTeleport(int teleportId) {
+    if (this.adaptiveActive) {
+      this.handleAdaptiveResult(this.adaptiveSession.confirmTeleport(teleportId));
+      return;
+    }
+
     if (teleportId == this.waitingTeleportId) {
       this.ticks = 1;
       this.posY = -1;
@@ -319,6 +358,11 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
       return;
     }
 
+    this.completeClientChecks();
+  }
+
+  private void completeClientChecks() {
+
     if (Settings.IMP.MAIN.CHECK_CLIENT_SETTINGS && !this.checkedBySettings) {
       this.disconnect(this.plugin.getPackets().getKickClientCheckSettings(), true);
       return;
@@ -366,6 +410,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   }
 
   private void changeStateToCaptcha() {
+    this.adaptiveActive = false;
     if (this.state != CheckState.ONLY_CAPTCHA && this.version.noLessThan(ProtocolVersion.MINECRAFT_1_21_2)) {
       this.player.writePacket(this.plugin.getPackets().getFallingCheckChunkUnload());
     }
@@ -418,6 +463,84 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     } else {
       return Settings.IMP.MAIN.TIME_OUT;
     }
+  }
+
+  private AdaptiveVerificationSession createAdaptiveSession(Settings.MAIN.ADAPTIVE_VERIFICATION settings) {
+    if (this.adaptiveMode == AdaptiveMode.OFF) {
+      return null;
+    }
+
+    boolean modernImpulse = settings.IMPULSE_ENABLED && this.version.noLessThan(ProtocolVersion.MINECRAFT_1_21_2);
+    PhysicsProfile profile = modernImpulse
+        ? PhysicsProfile.javaModern(settings.POSITION_TOLERANCE, settings.COLLISION_TOLERANCE, settings.MAX_PACKET_GAP_TICKS)
+        : PhysicsProfile.javaLegacy(settings.POSITION_TOLERANCE, settings.COLLISION_TOLERANCE, settings.MAX_PACKET_GAP_TICKS);
+    ChallengeProgram program = ChallengeProgramFactory.create(profile, new SecureRandom(), settings.PHASES_PER_SESSION);
+    return new AdaptiveVerificationSession(
+        program, profile, settings.MAX_SAMPLES_PER_PHASE, settings.MAX_SESSION_MILLIS, System::currentTimeMillis);
+  }
+
+  private void sendAdaptiveInstruction(ChallengeInstruction instruction) {
+    Settings.MAIN.COORDS coords = Settings.IMP.MAIN.COORDS;
+    this.onGround = false;
+    if (this.version.noLessThan(ProtocolVersion.MINECRAFT_1_21_2)) {
+      this.player.writePacket(new AdaptivePosition(
+          instruction.teleportId(), instruction.start(), instruction.initialVelocity(),
+          (float) coords.FALLING_CHECK_YAW, (float) coords.FALLING_CHECK_PITCH));
+    } else {
+      MotionVector position = instruction.start();
+      this.player.writePacket(this.plugin.getPacketFactory().createPositionRotationPacket(
+          position.x(), position.y(), position.z(),
+          (float) coords.FALLING_CHECK_YAW, (float) coords.FALLING_CHECK_PITCH,
+          false, instruction.teleportId(), true));
+      if (this.version.compareTo(ProtocolVersion.MINECRAFT_1_8) <= 0) {
+        this.handleAdaptiveResult(this.adaptiveSession.confirmTeleport(instruction.teleportId()));
+      }
+    }
+  }
+
+  private void handleAdaptiveResult(VerificationResult result) {
+    if (result == VerificationResult.PENDING) {
+      return;
+    }
+    if (result == VerificationResult.PHASE_PASSED) {
+      this.sendAdaptiveInstruction(this.adaptiveSession.currentInstruction());
+      this.player.flushPackets();
+      return;
+    }
+
+    this.adaptiveActive = false;
+    if (Settings.IMP.MAIN.FALLING_CHECK_DEBUG) {
+      LimboFilter.getLogger().info(
+          "{} adaptive verification finished: protocol={}, mode={}, result={}",
+          this.proxyPlayer, this.version, this.adaptiveMode, result);
+    }
+
+    if (this.adaptiveMode == AdaptiveMode.SHADOW) {
+      this.fallbackToLegacyFallingCheck();
+    } else if (result == VerificationResult.PASS) {
+      if (this.state == CheckState.CAPTCHA_POSITION) {
+        this.changeStateToCaptcha();
+      } else {
+        this.completeClientChecks();
+      }
+    } else {
+      this.fallingCheckFailed("Adaptive verification failed: " + result);
+    }
+  }
+
+  private void fallbackToLegacyFallingCheck() {
+    this.startedListening = false;
+    this.onGround = false;
+    this.ticks = 1;
+    this.ignoredTicks = 0;
+    this.nonValidPacketsSize = 0;
+    this.posX = this.validX;
+    this.posY = this.validY;
+    this.lastY = this.validY;
+    this.posZ = this.validZ;
+    this.waitingTeleportId = 0;
+    this.sendFallingCheckPackets();
+    this.player.flushPackets();
   }
 
   static {

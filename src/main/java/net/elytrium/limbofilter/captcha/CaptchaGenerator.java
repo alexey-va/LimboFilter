@@ -36,6 +36,7 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.charset.StandardCharsets;
+import java.security.SecureRandom;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.LinkedList;
@@ -53,6 +54,10 @@ import net.elytrium.limboapi.api.protocol.packets.data.MapPalette;
 import net.elytrium.limbofilter.LimboFilter;
 import net.elytrium.limbofilter.Settings;
 import net.elytrium.limbofilter.cache.captcha.CachedCaptcha;
+import net.elytrium.limbofilter.captcha.advanced.AdvancedCaptchaRenderer;
+import net.elytrium.limbofilter.captcha.advanced.CaptchaFamily;
+import net.elytrium.limbofilter.captcha.advanced.OneTimeCaptchaPool;
+import net.elytrium.limbofilter.captcha.advanced.RenderedCaptcha;
 import net.elytrium.limbofilter.captcha.map.CraftMapCanvas;
 import net.elytrium.limbofilter.captcha.painter.CaptchaPainter;
 import net.elytrium.limbofilter.captcha.painter.RenderedFont;
@@ -69,6 +74,9 @@ public class CaptchaGenerator {
   private boolean shouldStop;
   private CachedCaptcha cachedCaptcha;
   private CachedCaptcha tempCachedCaptcha;
+  private CaptchaRefillController<CaptchaHolder> oneTimeController;
+  private AdvancedCaptchaRenderer advancedRenderer;
+  private final ThreadLocal<SecureRandom> secureRandom = ThreadLocal.withInitial(SecureRandom::new);
   private ThreadLocal<Iterator<CraftMapCanvas>> backplatesIterator;
   private ThreadLocal<Iterator<RenderedFont>> fontIterator;
   private ThreadLocal<Iterator<byte[]>> colorIterator;
@@ -85,6 +93,11 @@ public class CaptchaGenerator {
   }
 
   public void initializeGenerator() {
+    if (Settings.IMP.MAIN.ONE_TIME_CAPTCHA.ENABLED) {
+      this.initializeOneTimeGenerator();
+      return;
+    }
+
     try {
       for (String backplatePath : Settings.IMP.MAIN.CAPTCHA_GENERATOR.BACKPLATE_PATHS) {
         if (!backplatePath.isEmpty()) {
@@ -196,6 +209,20 @@ public class CaptchaGenerator {
     this.backplatesIterator = ThreadLocal.withInitial(this.backplates::listIterator);
     this.fontIterator = ThreadLocal.withInitial(this.fonts::listIterator);
     this.colorIterator = ThreadLocal.withInitial(this.colors::listIterator);
+
+  }
+
+  private void initializeOneTimeGenerator() {
+    Settings.MAIN.ONE_TIME_CAPTCHA settings = Settings.IMP.MAIN.ONE_TIME_CAPTCHA;
+    this.advancedRenderer = new AdvancedCaptchaRenderer(MapData.MAP_DIM_SIZE, MapData.MAP_DIM_SIZE);
+    OneTimeCaptchaPool<CaptchaHolder> pool = new OneTimeCaptchaPool<>(settings.POOL_SIZE, settings.REFILL_LOW_WATER_MARK);
+    this.oneTimeController = new CaptchaRefillController<>(
+        pool,
+        settings.GENERATOR_THREADS,
+        this::createOneTimeCaptcha,
+        failure -> LimboFilter.getLogger().error("Unable to generate one-time captcha", failure)
+    );
+    this.oneTimeController.start();
   }
 
   private CraftMapCanvas createCraftMapCanvas() {
@@ -251,6 +278,10 @@ public class CaptchaGenerator {
 
   @SuppressWarnings("StatementWithEmptyBody")
   public void generateImages() {
+    if (this.oneTimeController != null) {
+      this.oneTimeController.requestRefill();
+      return;
+    }
     if (this.shouldStop) {
       return;
     }
@@ -321,43 +352,73 @@ public class CaptchaGenerator {
         this.painter.getWidth(), this.painter.getHeight());
     map.drawImage(this.painter.drawCurves(), this.painter.getWidth(), this.painter.getHeight());
 
-    Function<MapPalette.MapVersion, MinecraftPacket[]> packet
-        = mapVersion -> {
-          ThreadLocalRandom random = ThreadLocalRandom.current();
-          MinecraftPacket[] packets = new MinecraftPacket[map.getWidth() * map.getHeight()];
+    CaptchaPacketData packetData = this.createPacketData(map, ThreadLocalRandom.current());
+    cachedCaptcha.addCaptchaPacket(answer.value(), packetData.legacyPackets(), packetData.modernPackets());
+  }
 
-          for (int mapId = 0; mapId < packets.length; mapId++) {
-            MapData mapData = map.getMapData(mapId, mapVersion);
-            if (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
-                && random.nextDouble() <= Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAME_ROTATION_CHANCE) {
-              for (int j = 0; j < random.nextInt(4); ++j) {
-                this.rotate(mapData);
-              }
-            }
-            packets[mapId] = (MinecraftPacket) this.plugin.getPacketFactory().createMapDataPacket(mapId, (byte) 0, mapData);
+  private CaptchaHolder createOneTimeCaptcha() {
+    SecureRandom random = this.secureRandom.get();
+    List<CaptchaFamily> families = Settings.IMP.MAIN.ONE_TIME_CAPTCHA.FAMILIES;
+    CaptchaFamily family = families.get(random.nextInt(families.size()));
+    RenderedCaptcha rendered = this.advancedRenderer.render(family, random);
+
+    CraftMapCanvas map = this.createCraftMapCanvas();
+    map.drawImage(rendered.image(), this.painter.getWidth(), this.painter.getHeight());
+    CaptchaPacketData packetData = this.createPacketData(map, random);
+
+    MinecraftPacket[][] packetsByProtocol = new MinecraftPacket[ProtocolVersion.values().length][];
+    ProtocolVersion minVersion = this.plugin.getLimboFactory().getPrepareMinVersion();
+    ProtocolVersion maxVersion = this.plugin.getLimboFactory().getPrepareMaxVersion();
+    for (MapPalette.MapVersion mapVersion : MapPalette.MapVersion.values()) {
+      boolean supported = mapVersion.getVersions().stream()
+          .anyMatch(version -> minVersion.compareTo(version) <= 0 && maxVersion.compareTo(version) >= 0);
+      if (supported) {
+        MinecraftPacket[] packets = packetData.modernPackets().apply(mapVersion);
+        mapVersion.getVersions().forEach(version -> packetsByProtocol[version.ordinal()] = packets);
+      }
+    }
+
+    return new CaptchaHolder(rendered.answer(), null, packetData.legacyPackets(), packetsByProtocol);
+  }
+
+  private CaptchaPacketData createPacketData(CraftMapCanvas map, java.util.random.RandomGenerator random) {
+    Function<MapPalette.MapVersion, MinecraftPacket[]> modernPackets = mapVersion -> {
+      MinecraftPacket[] packets = new MinecraftPacket[map.getWidth() * map.getHeight()];
+      for (int mapId = 0; mapId < packets.length; mapId++) {
+        MapData mapData = map.getMapData(mapId, mapVersion);
+        if (Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAMED_CAPTCHA_ENABLED
+            && random.nextDouble() <= Settings.IMP.MAIN.FRAMED_CAPTCHA.FRAME_ROTATION_CHANCE) {
+          for (int rotation = 0; rotation < random.nextInt(4); ++rotation) {
+            this.rotate(mapData);
           }
+        }
+        packets[mapId] = (MinecraftPacket) this.plugin.getPacketFactory().createMapDataPacket(mapId, (byte) 0, mapData);
+      }
+      return packets;
+    };
 
-          return packets;
-        };
-    MinecraftPacket[] packets17;
+    MinecraftPacket[] legacyPackets;
     if (this.plugin.getLimboFactory().getPrepareMinVersion().compareTo(ProtocolVersion.MINECRAFT_1_7_6) <= 0) {
       int mapCount = map.getWidth() * map.getHeight();
-      packets17 = new MinecraftPacket[MapData.MAP_DIM_SIZE * mapCount];
+      legacyPackets = new MinecraftPacket[MapData.MAP_DIM_SIZE * mapCount];
       for (int mapId = 0; mapId < mapCount; mapId++) {
         MapData[] maps17Data = map.getMaps17Data(mapId);
-        for (int i = 0; i < MapData.MAP_DIM_SIZE; ++i) {
-          packets17[mapId * MapData.MAP_DIM_SIZE + i] =
-              (MinecraftPacket) this.plugin.getPacketFactory().createMapDataPacket(mapId, (byte) 0, maps17Data[i]);
+        for (int row = 0; row < MapData.MAP_DIM_SIZE; ++row) {
+          legacyPackets[mapId * MapData.MAP_DIM_SIZE + row] =
+              (MinecraftPacket) this.plugin.getPacketFactory().createMapDataPacket(mapId, (byte) 0, maps17Data[row]);
         }
       }
     } else {
-      packets17 = new MinecraftPacket[0];
+      legacyPackets = new MinecraftPacket[0];
     }
-
-    cachedCaptcha.addCaptchaPacket(answer.value(), packets17, packet);
+    return new CaptchaPacketData(legacyPackets, modernPackets);
   }
 
   public void shutdown() {
+    if (this.oneTimeController != null) {
+      this.oneTimeController.shutdown(CaptchaHolder::release);
+      this.oneTimeController = null;
+    }
     this.shouldStop = true;
     if (this.executor != null) {
       this.executor.shutdownNow();
@@ -373,7 +434,9 @@ public class CaptchaGenerator {
   }
 
   public CaptchaHolder getNextCaptcha() {
-    if (this.cachedCaptcha == null) {
+    if (this.oneTimeController != null) {
+      return this.oneTimeController.acquire();
+    } else if (this.cachedCaptcha == null) {
       return null;
     } else {
       return this.cachedCaptcha.getNextCaptcha();
@@ -435,5 +498,9 @@ public class CaptchaGenerator {
     }
 
     return this.colorIterator.get().next();
+  }
+
+  private record CaptchaPacketData(MinecraftPacket[] legacyPackets,
+                                   Function<MapPalette.MapVersion, MinecraftPacket[]> modernPackets) {
   }
 }
