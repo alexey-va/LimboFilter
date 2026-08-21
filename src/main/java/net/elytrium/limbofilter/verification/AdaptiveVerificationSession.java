@@ -152,6 +152,20 @@ public final class AdaptiveVerificationSession {
     return this.result;
   }
 
+  public Diagnostics diagnostics() {
+    return new Diagnostics(
+        this.phaseIndex + 1,
+        this.program.instructions().size(),
+        this.samples,
+        this.teleportConfirmed,
+        this.awaitingInitialMotion,
+        this.initialPositionEchoes,
+        this.previous,
+        this.currentInstruction(),
+        this.result
+    );
+  }
+
   private boolean expired() {
     return this.clock.getAsLong() - this.startedAt > this.maxSessionMillis;
   }
@@ -170,5 +184,11 @@ public final class AdaptiveVerificationSession {
     return Math.abs(actual.x() - expected.x()) <= tolerance
         && Math.abs(actual.y() - expected.y()) <= tolerance
         && Math.abs(actual.z() - expected.z()) <= tolerance;
+  }
+
+  public record Diagnostics(int phaseNumber, int totalPhases, int samples,
+                            boolean teleportConfirmed, boolean awaitingInitialMotion,
+                            int initialPositionEchoes, MotionSample previous,
+                            ChallengeInstruction instruction, VerificationResult result) {
   }
 }

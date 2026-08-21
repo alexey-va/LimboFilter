@@ -67,6 +67,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   private final int validTeleportId;
   private final AdaptiveMode adaptiveMode;
   private final AdaptiveVerificationSession adaptiveSession;
+  private final boolean adaptiveDiagnosticsEnabled;
 
   private double posX;
   private double posY;
@@ -124,6 +125,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
         adaptive.TEST_USERNAMES,
         adaptive.FULL_TEST_USERNAMES,
         this.proxyPlayer.getUsername());
+    this.adaptiveDiagnosticsEnabled = adaptivePolicy.diagnosticsEnabled();
     if (!geyserConnection && adaptivePolicy.forceCaptcha()) {
       this.state = CheckState.CAPTCHA_POSITION;
     }
@@ -181,6 +183,7 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   public void onMove(double x, double y, double z) {
     if (this.adaptiveActive) {
       VerificationResult result = this.adaptiveSession.move(new MotionVector(x, y, z), this.onGround);
+      this.logAdaptiveResult(result, "move=(" + x + ", " + y + ", " + z + "), onGround=" + this.onGround);
       this.handleAdaptiveResult(result);
       return;
     }
@@ -287,7 +290,9 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
   @Override
   public void onTeleport(int teleportId) {
     if (this.adaptiveActive) {
-      this.handleAdaptiveResult(this.adaptiveSession.confirmTeleport(teleportId));
+      VerificationResult result = this.adaptiveSession.confirmTeleport(teleportId);
+      this.logAdaptiveResult(result, "teleport-confirm=" + teleportId);
+      this.handleAdaptiveResult(result);
       return;
     }
 
@@ -521,12 +526,6 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     }
 
     this.adaptiveActive = false;
-    if (Settings.IMP.MAIN.FALLING_CHECK_DEBUG) {
-      LimboFilter.getLogger().info(
-          "{} adaptive verification finished: protocol={}, mode={}, result={}",
-          this.proxyPlayer, this.version, this.adaptiveMode, result);
-    }
-
     if (this.adaptiveMode == AdaptiveMode.SHADOW) {
       this.fallbackToLegacyFallingCheck();
     } else if (result == VerificationResult.PASS) {
@@ -538,6 +537,22 @@ public class BotFilterSessionHandler implements LimboSessionHandler {
     } else {
       this.fallingCheckFailed("Adaptive verification failed: " + result);
     }
+  }
+
+  private void logAdaptiveResult(VerificationResult result, String event) {
+    if ((!Settings.IMP.MAIN.FALLING_CHECK_DEBUG && !this.adaptiveDiagnosticsEnabled)
+        || result == VerificationResult.PENDING) {
+      return;
+    }
+
+    AdaptiveVerificationSession.Diagnostics diagnostics = this.adaptiveSession.diagnostics();
+    LimboFilter.getLogger().info(
+        "{} adaptive verification: protocol={}, mode={}, result={}, event={}, phase={}/{}, samples={}, "
+            + "teleportConfirmed={}, awaitingInitialMotion={}, initialEchoes={}, previous={}, instruction={}",
+        this.proxyPlayer, this.version, this.adaptiveMode, result, event,
+        diagnostics.phaseNumber(), diagnostics.totalPhases(), diagnostics.samples(),
+        diagnostics.teleportConfirmed(), diagnostics.awaitingInitialMotion(), diagnostics.initialPositionEchoes(),
+        diagnostics.previous(), diagnostics.instruction());
   }
 
   private void fallbackToLegacyFallingCheck() {

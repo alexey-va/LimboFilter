@@ -38,7 +38,7 @@ public final class AdaptiveModeSelector {
 
     boolean fullTestUser = containsUsername(fullTestUsernames, username);
     boolean testUser = fullTestUser || containsUsername(testUsernames, username);
-    return new Policy(testUser ? AdaptiveMode.ENFORCE : globalMode, fullTestUser);
+    return new Policy(testUser ? AdaptiveMode.ENFORCE : globalMode, fullTestUser, testUser);
   }
 
   public static boolean shouldForceFilter(List<String> fullTestUsernames, String username,
@@ -55,6 +55,6 @@ public final class AdaptiveModeSelector {
         .anyMatch(username::equalsIgnoreCase);
   }
 
-  public record Policy(AdaptiveMode mode, boolean forceCaptcha) {
+  public record Policy(AdaptiveMode mode, boolean forceCaptcha, boolean diagnosticsEnabled) {
   }
 }

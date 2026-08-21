@@ -149,6 +149,26 @@ class AdaptiveVerificationSessionTest {
         timeout.move(new MotionVector(0.0, 0.0, 0.0), true));
   }
 
+  @Test
+  void exposesBoundedDiagnosticsForARejectedSample() {
+    ChallengeInstruction instruction = new ChallengeInstruction(
+        ChallengePhase.FALL_COLLISION, 91, new MotionVector(0.0, 1.0, 0.0), MotionVector.ZERO, 0.0, 2.0);
+    AdaptiveVerificationSession session = session(instruction);
+
+    session.start();
+    session.confirmTeleport(91);
+    assertEquals(VerificationResult.FAIL_TRAJECTORY,
+        session.move(new MotionVector(3.0, 0.5, 0.0), false));
+
+    AdaptiveVerificationSession.Diagnostics diagnostics = session.diagnostics();
+    assertEquals(1, diagnostics.phaseNumber());
+    assertEquals(1, diagnostics.totalPhases());
+    assertEquals(1, diagnostics.samples());
+    assertEquals(instruction, diagnostics.instruction());
+    assertEquals(new MotionSample(0, instruction.start(), MotionVector.ZERO, false), diagnostics.previous());
+    assertEquals(VerificationResult.FAIL_TRAJECTORY, diagnostics.result());
+  }
+
   private static AdaptiveVerificationSession session(ChallengeInstruction instruction) {
     return new AdaptiveVerificationSession(
         new ChallengeProgram(List.of(instruction)), PROFILE, 160, 12_000L, () -> 0L);

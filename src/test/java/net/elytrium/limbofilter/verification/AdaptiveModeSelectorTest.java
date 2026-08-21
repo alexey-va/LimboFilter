@@ -51,6 +51,7 @@ class AdaptiveModeSelectorTest {
 
     assertEquals(AdaptiveMode.ENFORCE, policy.mode());
     assertTrue(policy.forceCaptcha());
+    assertTrue(policy.diagnosticsEnabled());
   }
 
   @Test
@@ -60,6 +61,15 @@ class AdaptiveModeSelectorTest {
 
     assertEquals(AdaptiveMode.ENFORCE, policy.mode());
     assertFalse(policy.forceCaptcha());
+    assertTrue(policy.diagnosticsEnabled());
+  }
+
+  @Test
+  void keepsPerPlayerDiagnosticsOffOutsideTheTestAllowlists() {
+    AdaptiveModeSelector.Policy policy = AdaptiveModeSelector.resolvePolicy(
+        AdaptiveMode.ENFORCE, List.of("CodexQA_728"), List.of("GrocerMC"), "AnotherPlayer");
+
+    assertFalse(policy.diagnosticsEnabled());
   }
 
   @Test
