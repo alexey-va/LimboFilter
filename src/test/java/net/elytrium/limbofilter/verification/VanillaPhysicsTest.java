@@ -43,15 +43,20 @@ class VanillaPhysicsTest {
 
   @Test
   void appliesHorizontalAirDragToAnImpulse() {
-    MotionSample next = VanillaPhysics.next(
+    MotionSample first = VanillaPhysics.next(
         new MotionSample(0, new MotionVector(2.0, 10.0, -2.0), new MotionVector(0.4, 0.0, -0.2), false),
         PROFILE, 0.0);
+    MotionSample second = VanillaPhysics.next(first, PROFILE, 0.0);
 
     assertAll(
-        () -> assertEquals(2.364, next.position().x(), 1.0e-12),
-        () -> assertEquals(-2.182, next.position().z(), 1.0e-12),
-        () -> assertEquals(0.364, next.velocity().x(), 1.0e-12),
-        () -> assertEquals(-0.182, next.velocity().z(), 1.0e-12)
+        () -> assertEquals(2.4, first.position().x(), 1.0e-12),
+        () -> assertEquals(-2.2, first.position().z(), 1.0e-12),
+        () -> assertEquals(0.4, first.velocity().x(), 1.0e-12),
+        () -> assertEquals(-0.2, first.velocity().z(), 1.0e-12),
+        () -> assertEquals(2.764, second.position().x(), 1.0e-12),
+        () -> assertEquals(-2.382, second.position().z(), 1.0e-12),
+        () -> assertEquals(0.364, second.velocity().x(), 1.0e-12),
+        () -> assertEquals(-0.182, second.velocity().z(), 1.0e-12)
     );
   }
 

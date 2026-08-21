@@ -31,11 +31,13 @@ public final class VanillaPhysics {
       return new MotionSample(previous.tick() + 1, previous.position(), MotionVector.ZERO, true);
     }
 
-    MotionVector velocity = new MotionVector(
-        previous.velocity().x() * profile.horizontalDrag(),
-        (previous.velocity().y() - profile.gravity()) * profile.verticalDrag(),
-        previous.velocity().z() * profile.horizontalDrag()
-    );
+    MotionVector velocity = previous.tick() == 0 && !previous.velocity().equals(MotionVector.ZERO)
+        ? previous.velocity()
+        : new MotionVector(
+            previous.velocity().x() * profile.horizontalDrag(),
+            (previous.velocity().y() - profile.gravity()) * profile.verticalDrag(),
+            previous.velocity().z() * profile.horizontalDrag()
+        );
     MotionVector position = previous.position().add(velocity);
 
     if (previous.position().y() >= platformTopY && position.y() <= platformTopY) {

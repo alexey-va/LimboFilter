@@ -17,7 +17,7 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.5` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.6` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
@@ -72,7 +72,9 @@ Adaptive sessions preload the real collision-platform chunks before waiting
 for movement, so vanilla clients start physics instead of stalling on an empty
 world. A bounded startup window accepts the duplicate initial-position echoes
 that vanilla sends before its first physics tick, without allowing a client to
-remain frozen past the configured packet-gap bound.
+remain frozen past the configured packet-gap bound. The first impulse tick
+applies the server-provided delta before gravity and drag, matching the vanilla
+client update order.
 
 Keep `captcha-generator.prepare-captcha-packets: false` while the one-time pool
 is enabled. Reload fails fast if this invariant or any resource bound is

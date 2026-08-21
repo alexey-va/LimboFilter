@@ -78,15 +78,17 @@ class AdaptiveVerificationSessionTest {
 
     session.start();
     assertEquals(VerificationResult.PENDING, session.confirmTeleport(321));
-    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.182, 0.6176, 0.0), false));
-    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.34762, 0.654448, 0.0), false));
-    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.4983342, 0.61215904, 0.0), false));
-    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.635484122, 0.4923158592, 0.0), false));
-    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.76029055102, 0.296469542016, 0.0), false));
+    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.2, 0.7, 0.0), false));
+    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.382, 0.8176, 0.0), false));
+    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.54762, 0.854448, 0.0), false));
+    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.6983342, 0.81215904, 0.0), false));
+    assertEquals(VerificationResult.PENDING, session.move(new MotionVector(0.835485122, 0.6923158592, 0.0), false));
     assertEquals(VerificationResult.PENDING,
-        session.move(new MotionVector(0.8738644014282, 0.02614015117568, 0.0), false));
+        session.move(new MotionVector(0.96029246102, 0.496469542016, 0.0), false));
+    assertEquals(VerificationResult.PENDING,
+        session.move(new MotionVector(1.0738671395282, 0.22614015117568, 0.0), false));
     assertEquals(VerificationResult.PASS,
-        session.move(new MotionVector(0.977216605299662, 0.0, 0.0), true));
+        session.move(new MotionVector(1.177220096970662, 0.0, 0.0), true));
   }
 
   @Test
