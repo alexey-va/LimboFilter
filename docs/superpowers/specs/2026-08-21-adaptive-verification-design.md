@@ -116,11 +116,11 @@ it is small, BSD-3-Clause licensed, builder-based, and produces
 would duplicate LimboFilter's existing rendering primitives without providing
 the security property the fork needs.
 
-The fork introduces `CaptchaChallengeProvider` and a bounded
-`OneTimeCaptchaPool`. Every acquired challenge is removed permanently. A
-background worker refills the pool to a configured high-water mark, one image
-at a time, and stops cleanly on reload. The pool stores map-palette byte arrays
-on heap and never retains prepared Netty packet buffers.
+The fork integrates a bounded `OneTimeCaptchaPool` into `CaptchaGenerator`.
+Every acquired challenge is removed permanently. One or two background workers
+refill the pool to a configured high-water mark and stop cleanly on reload. The
+pool stores map-palette byte arrays on heap and never retains prepared Netty
+packet buffers.
 
 Three challenge families are supported:
 
@@ -130,10 +130,9 @@ Three challenge families are supported:
 - `MARKED_GLYPHS`: enter only glyphs carrying a specified visual marker. This
   requires OCR plus spatial association rather than plain text extraction.
 
-All answers are normalized by a family-specific policy. Challenge IDs are
-monotonic within the process and are never used as answers or secrets. A
-challenge is single-use even when the player answers incorrectly; a retry gets
-a new image and answer.
+All answers are normalized by a family-specific policy. A challenge is
+single-use even when the player answers incorrectly; a retry gets a newly
+generated image and answer.
 
 The default pool size is `128`, refill low-water mark is `32`, generation uses
 one low-priority worker, and acquisition fails closed to the existing
@@ -183,9 +182,9 @@ Adaptive verification produces one terminal result:
 - `TIMEOUT`;
 - `UNSUPPORTED`.
 
-Debug logging contains protocol family, phase, sample count, and reason, but
+Debug logging contains the player, protocol, mode, and terminal result, but
 never the random seed, CAPTCHA answer, or complete expected trajectory. Normal
-operation increments bounded in-memory counters without logging every packet.
+operation does not log individual movement packets.
 
 If the CAPTCHA worker throws, the error is logged once per refill cycle and the
 last healthy pool remains usable. Reload swaps in a fully initialized provider
@@ -216,4 +215,3 @@ JUnit 5 tests cover pure behavior without launching Velocity:
 No production deployment is part of this scope. A later rollout must first run
 the fork in `SHADOW`, test real Java clients across supported versions, confirm
 Geyser fallback, and inspect direct-memory behavior before enabling `ENFORCE`.
-

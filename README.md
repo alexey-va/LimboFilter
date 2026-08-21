@@ -15,6 +15,69 @@ Most powerful bot filtering solution for Minecraft proxies. Built with LimboAPI.
 
 Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
+## RusCrafting hardened fork
+
+Version `1.2.0-ruscrafting.1` adds two independent checks on top of upstream
+LimboFilter:
+
+- per-session randomized physics programs with teleport nonces, bounded
+  skipped-tick envelopes, randomized collision platforms, and optional
+  horizontal/vertical impulse checks on Minecraft 1.21.2+;
+- single-use map CAPTCHAs from `TEXT`, `ARITHMETIC`, and `MARKED_GLYPHS`
+  families, generated asynchronously into a bounded heap-backed pool.
+
+The adaptive verifier has three modes:
+
+- `OFF`: use the upstream falling check only;
+- `SHADOW`: run the randomized program, record its terminal result when debug
+  logging is enabled, then preserve the upstream falling-check decision;
+- `ENFORCE`: require the randomized program to pass.
+
+`SHADOW` is the default. Geyser connections always keep the legacy/CAPTCHA
+path because Bedrock movement is not evaluated with Java physics. Before using
+`ENFORCE`, test the real client and ViaVersion matrix used by the proxy.
+
+The generated configuration contains:
+
+```yaml
+adaptive-verification:
+  mode: SHADOW
+  max-packet-gap-ticks: 4
+  max-samples-per-phase: 160
+  max-session-millis: 12000
+  phases-per-session: 3
+  impulse-enabled: true
+  position-tolerance: 0.035
+  collision-tolerance: 0.0625
+
+one-time-captcha:
+  enabled: true
+  pool-size: 128
+  refill-low-water-mark: 32
+  generator-threads: 1
+  families: [TEXT, ARITHMETIC, MARKED_GLYPHS]
+```
+
+Keep `captcha-generator.prepare-captcha-packets: false` while the one-time pool
+is enabled. Reload fails fast if this invariant or any resource bound is
+invalid; this prevents the prepared Netty-buffer memory amplification that the
+fork is specifically designed to avoid.
+
+The regression suite compares 10,000 deterministic randomized programs with a
+fixed Sonar-style fall-only responder and requires at least 99% rejection. This
+is a defined replay baseline, not a claim about 99% of all real attacks.
+
+Build and verify on Java 21:
+
+```bash
+./gradlew test
+./gradlew check
+./gradlew shadowJar
+```
+
+The detailed independent design and rollout boundaries are documented in
+[`docs/superpowers/specs/2026-08-21-adaptive-verification-design.md`](docs/superpowers/specs/2026-08-21-adaptive-verification-design.md).
+
 ## See also
 
 - [LimboAuth](https://github.com/Elytrium/LimboAuth) - Auth System built in virtual server (Limbo). Uses [BCrypt](https://en.wikipedia.org/wiki/Bcrypt), has [TOTP](https://en.wikipedia.org/wiki/Time-based_one-time_password) [2FA](https://en.wikipedia.org/wiki/Help:Two-factor_authentication) feature. Supports literally any database due to [OrmLite](https://ormlite.com).

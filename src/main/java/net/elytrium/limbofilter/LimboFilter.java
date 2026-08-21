@@ -84,9 +84,10 @@ import org.slf4j.Logger;
     id = "limbofilter",
     name = "LimboFilter",
     version = BuildConstants.FILTER_VERSION,
-    url = "https://elytrium.net/",
+    url = "https://github.com/alexey-va/LimboFilter",
     authors = {
         "Elytrium (https://elytrium.net/)",
+        "RusCrafting",
     },
     dependencies = {
         @Dependency(id = "limboapi")
@@ -154,7 +155,8 @@ public class LimboFilter {
     metrics.addCustomChart(new SingleLineChart("pings", () -> Math.toIntExact(this.statistics.getPings()))); // Total pings
     metrics.addCustomChart(new SingleLineChart("connections", () -> Math.toIntExact(this.statistics.getConnections())));
 
-    if (!UpdatesChecker.checkVersionByURL("https://raw.githubusercontent.com/Elytrium/LimboFilter/master/VERSION", Settings.IMP.VERSION)) {
+    if (!BuildConstants.FILTER_VERSION.contains("-ruscrafting.")
+        && !UpdatesChecker.checkVersionByURL("https://raw.githubusercontent.com/Elytrium/LimboFilter/master/VERSION", Settings.IMP.VERSION)) {
       LOGGER.error("****************************************");
       LOGGER.warn("The new LimboFilter update was found, please update.");
       LOGGER.error("https://github.com/Elytrium/LimboFilter/releases/");
