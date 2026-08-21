@@ -17,7 +17,7 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.7` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.8` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
@@ -70,8 +70,9 @@ forced through `ENFORCE`. An empty list disables the override. Geyser and
 `full-test-usernames` is also case-insensitive and is intended for an isolated
 end-to-end pilot. A listed Java username is forced through adaptive `ENFORCE`
 and then `CAPTCHA_POSITION`, including when the current CPS-selected Java check
-would normally omit CAPTCHA. Geyser connections retain their compatibility
-path.
+would normally omit CAPTCHA. The full-pipeline override also bypasses the
+verified-player cache and CPS/online-mode bypasses so every Java connection can
+be tested repeatedly. Geyser connections retain their compatibility path.
 
 Captcha family names are normalized after YAML loading so the generated string
 list is validated and converted before the captcha pool consumes it.

@@ -66,6 +66,7 @@ import net.elytrium.limbofilter.protocol.packets.Interact;
 import net.elytrium.limbofilter.protocol.packets.SetEntityMetadata;
 import net.elytrium.limbofilter.protocol.packets.SpawnEntity;
 import net.elytrium.limbofilter.stats.Statistics;
+import net.elytrium.limbofilter.verification.AdaptiveModeSelector;
 import net.elytrium.limbofilter.verification.ChallengeProgramFactory;
 import net.elytrium.limbofilter.verification.MotionVector;
 import net.elytrium.pcap.PcapException;
@@ -429,6 +430,13 @@ public class LimboFilter {
   }
 
   public boolean shouldCheck(Player player) {
+    boolean geyserConnection = player.getRemoteAddress().getPort() == 0;
+    if (AdaptiveModeSelector.shouldForceFilter(
+        Settings.IMP.MAIN.ADAPTIVE_VERIFICATION.FULL_TEST_USERNAMES,
+        player.getUsername(), geyserConnection)) {
+      return true;
+    }
+
     if (!this.checkCpsLimit(Settings.IMP.MAIN.FILTER_AUTO_TOGGLE.ALL_BYPASS)) {
       return false;
     }
@@ -437,7 +445,7 @@ public class LimboFilter {
       return false;
     }
 
-    if (player.getRemoteAddress().getPort() == 0 && !this.checkCpsLimit(Settings.IMP.MAIN.FILTER_AUTO_TOGGLE.GEYSER_BYPASS)) {
+    if (geyserConnection && !this.checkCpsLimit(Settings.IMP.MAIN.FILTER_AUTO_TOGGLE.GEYSER_BYPASS)) {
       return false;
     }
 

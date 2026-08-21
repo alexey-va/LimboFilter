@@ -41,6 +41,13 @@ public final class AdaptiveModeSelector {
     return new Policy(testUser ? AdaptiveMode.ENFORCE : globalMode, fullTestUser);
   }
 
+  public static boolean shouldForceFilter(List<String> fullTestUsernames, String username,
+                                          boolean geyserConnection) {
+    Objects.requireNonNull(fullTestUsernames, "fullTestUsernames");
+    Objects.requireNonNull(username, "username");
+    return !geyserConnection && containsUsername(fullTestUsernames, username);
+  }
+
   private static boolean containsUsername(List<String> usernames, String username) {
     return usernames.stream()
         .filter(Objects::nonNull)

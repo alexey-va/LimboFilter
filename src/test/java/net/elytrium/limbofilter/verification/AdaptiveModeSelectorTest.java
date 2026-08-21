@@ -61,4 +61,14 @@ class AdaptiveModeSelectorTest {
     assertEquals(AdaptiveMode.ENFORCE, policy.mode());
     assertFalse(policy.forceCaptcha());
   }
+
+  @Test
+  void forcesOnlyJavaFullTestUsersThroughTheFilterEntryGate() {
+    assertTrue(AdaptiveModeSelector.shouldForceFilter(
+        List.of("  GrocerMC  "), "grocermc", false));
+    assertFalse(AdaptiveModeSelector.shouldForceFilter(
+        List.of("GrocerMC"), "GrocerMC", true));
+    assertFalse(AdaptiveModeSelector.shouldForceFilter(
+        List.of("GrocerMC"), "AnotherPlayer", false));
+  }
 }
