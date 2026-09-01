@@ -41,6 +41,7 @@ public class FilterListener {
   @Subscribe(order = PostOrder.FIRST)
   public void onProxyConnect(PreLoginEvent event) {
     this.plugin.getStatistics().addConnection();
+    this.plugin.getPacketTraceManager().install(event.getConnection(), event.getUsername());
 
     if (this.plugin.checkCpsLimit(Settings.IMP.MAIN.FILTER_AUTO_TOGGLE.ONLINE_MODE_VERIFY)
         && this.plugin.shouldCheck(event.getUsername(), event.getConnection().getRemoteAddress().getAddress())) {

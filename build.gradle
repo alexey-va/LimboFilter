@@ -9,7 +9,7 @@ plugins {
 }
 
 setGroup("net.elytrium")
-setVersion("1.2.0-ruscrafting.21")
+setVersion("1.2.0-ruscrafting.22")
 
 compileJava {
     getOptions().setEncoding("UTF-8")
@@ -56,6 +56,7 @@ dependencies {
     testImplementation("com.velocitypowered:velocity-api:$velocityVersion")
     testImplementation("com.velocitypowered:velocity-proxy:$velocityVersion")
     testImplementation("io.netty:netty-buffer:$nettyVersion")
+    testImplementation("io.netty:netty-transport:$nettyVersion")
     testImplementation("net.elytrium.commons:config:1.2.3")
     testRuntimeOnly("net.elytrium.commons:kyori:1.2.3")
     testRuntimeOnly("net.elytrium.commons:utils:1.2.3")

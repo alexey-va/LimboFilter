@@ -95,6 +95,10 @@ class AdaptiveSettingsTest {
     adaptive = new Settings.MAIN.ADAPTIVE_VERIFICATION();
     adaptive.PACKET_DEBUG_MAX_EVENTS = 0;
     assertInvalid(adaptive, new Settings.MAIN.ONE_TIME_CAPTCHA(), false);
+
+    adaptive = new Settings.MAIN.ADAPTIVE_VERIFICATION();
+    adaptive.PACKET_DEBUG_MAX_MILLIS = 999;
+    assertInvalid(adaptive, new Settings.MAIN.ONE_TIME_CAPTCHA(), false);
   }
 
   @Test

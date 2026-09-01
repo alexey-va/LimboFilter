@@ -17,7 +17,7 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.21` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.22` adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
@@ -55,6 +55,7 @@ adaptive-verification:
   packet-debug: false
   packet-debug-usernames: []
   packet-debug-max-events: 256
+  packet-debug-max-millis: 600000
   max-packet-gap-ticks: 4
   max-samples-per-phase: 160
   max-session-millis: 12000
@@ -86,10 +87,17 @@ would normally omit CAPTCHA. The full-pipeline override also bypasses the
 verified-player cache and CPS/online-mode bypasses so every Java connection can
 be tested repeatedly. Geyser connections retain their compatibility path.
 
-`packet-debug` records Limbo callback packets, state transitions, and adaptive
-matcher decisions only for `packet-debug-usernames`. The per-session event
-budget prevents unbounded log growth. Chat contents and CAPTCHA answers are
-never logged; only their lengths and non-secret state are recorded.
+`packet-debug` records every decoded client↔proxy packet event after Velocity
+knows the username, plus Limbo callbacks, state transitions, and adaptive
+matcher decisions, only for `packet-debug-usernames`. It follows the same
+client connection through auth, Limbo, and backend handoffs. The initial
+handshake and login-name packet happen before the username is available and
+are therefore not included. Event and time budgets prevent unbounded log
+growth. Reloading with `packet-debug: false` or removing the username stops the
+connection trace on its next packet. Packet payloads, chat contents, commands,
+passwords, tokens, UUIDs, IP addresses, and CAPTCHA answers are never logged;
+the connection trace records only direction, timing, protocol state, Java
+packet type, and a readable byte count when available.
 
 Captcha family names are normalized after YAML loading so the generated string
 list is validated and converted before the captcha pool consumes it.

@@ -60,6 +60,7 @@ import net.elytrium.limbofilter.captcha.advanced.CaptchaFamily;
 import net.elytrium.limbofilter.captcha.advanced.MemoryGridLayout;
 import net.elytrium.limbofilter.commands.LimboFilterCommand;
 import net.elytrium.limbofilter.commands.SendFilterCommand;
+import net.elytrium.limbofilter.diagnostics.PacketTraceManager;
 import net.elytrium.limbofilter.handler.BotFilterSessionHandler;
 import net.elytrium.limbofilter.listener.FilterListener;
 import net.elytrium.limbofilter.listener.TcpListener;
@@ -112,6 +113,7 @@ public class LimboFilter {
   private final Statistics statistics;
   private final LimboFactory limboFactory;
   private final PacketFactory packetFactory;
+  private final PacketTraceManager packetTraceManager;
   private final Level initialLogLevel;
 
   private Limbo filterServer;
@@ -133,6 +135,7 @@ public class LimboFilter {
     this.dataDirectory = dataDirectory;
     this.configFile = this.dataDirectory.resolve("config.yml").toFile();
     this.statistics = new Statistics();
+    this.packetTraceManager = new PacketTraceManager(logger);
 
     this.limboFactory = (LimboFactory) this.server.getPluginManager().getPlugin("limboapi").flatMap(PluginContainer::getInstance).orElseThrow();
     this.packetFactory = this.limboFactory.getPacketFactory();
@@ -177,6 +180,13 @@ public class LimboFilter {
         Settings.IMP.MAIN.ADAPTIVE_VERIFICATION,
         Settings.IMP.MAIN.ONE_TIME_CAPTCHA,
         Settings.IMP.MAIN.CAPTCHA_GENERATOR.PREPARE_CAPTCHA_PACKETS
+    );
+    Settings.MAIN.ADAPTIVE_VERIFICATION adaptive = Settings.IMP.MAIN.ADAPTIVE_VERIFICATION;
+    this.packetTraceManager.reload(
+        adaptive.PACKET_DEBUG,
+        adaptive.PACKET_DEBUG_USERNAMES,
+        adaptive.PACKET_DEBUG_MAX_EVENTS,
+        adaptive.PACKET_DEBUG_MAX_MILLIS
     );
 
     ComponentSerializer<Component, Component, String> serializer = Settings.IMP.SERIALIZER.getSerializer();
@@ -586,6 +596,10 @@ public class LimboFilter {
 
   public Statistics getStatistics() {
     return this.statistics;
+  }
+
+  public PacketTraceManager getPacketTraceManager() {
+    return this.packetTraceManager;
   }
 
   public TcpListener getTcpListener() {

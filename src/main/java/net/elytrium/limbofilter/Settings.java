@@ -101,12 +101,14 @@ public class Settings extends YamlConfig {
       })
       public List<String> FULL_TEST_USERNAMES = List.of();
       @Comment({
-          "Log a bounded packet/check trace only for packet-debug-usernames.",
-          "Keep disabled outside short diagnostic sessions."
+          "Log a bounded connection packet/check trace only for packet-debug-usernames.",
+          "Packet payloads, passwords, tokens, UUIDs, and IP addresses are never logged.",
+          "Keep disabled outside short diagnostic sessions. Reload applies changes."
       })
       public boolean PACKET_DEBUG = false;
       public List<String> PACKET_DEBUG_USERNAMES = List.of();
       public int PACKET_DEBUG_MAX_EVENTS = 256;
+      public long PACKET_DEBUG_MAX_MILLIS = 600000;
       public int MAX_PACKET_GAP_TICKS = 4;
       public int MAX_SAMPLES_PER_PHASE = 160;
       public long MAX_SESSION_MILLIS = 12000;
@@ -534,6 +536,9 @@ public class Settings extends YamlConfig {
 
     if (adaptive.PACKET_DEBUG_MAX_EVENTS < 1 || adaptive.PACKET_DEBUG_MAX_EVENTS > 10_000) {
       throw new IllegalArgumentException("adaptive packet-debug-max-events must be in range 1..10000");
+    }
+    if (adaptive.PACKET_DEBUG_MAX_MILLIS < 1_000 || adaptive.PACKET_DEBUG_MAX_MILLIS > 600_000) {
+      throw new IllegalArgumentException("adaptive packet-debug-max-millis must be in range 1000..600000");
     }
 
     if (adaptive.MAX_PACKET_GAP_TICKS < 1 || adaptive.MAX_PACKET_GAP_TICKS > 20) {
