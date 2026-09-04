@@ -1,7 +1,5 @@
 # Adaptive Verification and One-Time CAPTCHA Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
-
 **Goal:** Build a tested LimboFilter fork with replay-resistant randomized physics verification and single-use advanced Minecraft map CAPTCHAs.
 
 **Architecture:** Pure Java physics and challenge state-machine classes remain independent of Velocity, while `BotFilterSessionHandler` adapts LimboAPI callbacks and packets. The existing renderer is augmented by deterministic advanced challenge families, and a bounded queue replaces complete-image replay in the enabled one-time mode.
