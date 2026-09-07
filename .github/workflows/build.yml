@@ -2,15 +2,37 @@ name: Java CI with Gradle
 
 on:
   push:
-    branches:
-      - master
+    branches: [master]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.agents/**'
+      - '.codex/**'
+      - 'src/test/e2e/**'
+      - 'src/test/e2e-*/**'
   pull_request:
-    branches:
-      - master
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '.agents/**'
+      - '.codex/**'
+      - 'src/test/e2e/**'
+      - 'src/test/e2e-*/**'
+  workflow_dispatch:
+    inputs:
+      heavy_tests:
+        description: Run expensive integration and Paper tests
+        type: boolean
+        default: false
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v4.2.2
@@ -19,8 +41,9 @@ jobs:
         with:
           distribution: temurin
           java-version: 25
+      - uses: gradle/actions/setup-gradle@ed408507eac070d1f99cc633dbcf757c94c7933a # v4
       - name: Build LimboFilter
-        run: ./gradlew build
+        run: ./gradlew --build-cache build
       - name: Upload LimboFilter
         uses: actions/upload-artifact@v4.6.2
         with:
@@ -41,7 +64,7 @@ jobs:
         id: find-jar
         run: |
           output="$(find build/libs/ ! -name "*-javadoc.jar" ! -name "*-sources.jar" -type f -printf "%f\n")"
-          echo "::set-output name=jarname::$output"
+          echo "jarname=$output" >> "$GITHUB_OUTPUT"
       - name: Release the build
         if: ${{ github.event_name == 'push' }}
         uses: ncipollo/release-action@v1
