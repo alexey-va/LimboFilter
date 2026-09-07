@@ -19,11 +19,6 @@ on:
       - 'src/test/e2e/**'
       - 'src/test/e2e-*/**'
   workflow_dispatch:
-    inputs:
-      heavy_tests:
-        description: Run expensive integration and Paper tests
-        type: boolean
-        default: false
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
