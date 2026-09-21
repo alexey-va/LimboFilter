@@ -17,7 +17,8 @@ Test server: [``ely.su``](https://hotmc.ru/minecraft-server-203216)
 
 ## RusCrafting hardened fork
 
-Version `1.2.0-ruscrafting.22` adds two independent checks on top of upstream
+Version `1.2.0-ruscrafting.23` keeps the fork aligned with upstream Minecraft
+26.3 / Velocity 4.x support and adds two independent checks on top of upstream
 LimboFilter:
 
 - per-session randomized physics programs with teleport nonces, bounded
